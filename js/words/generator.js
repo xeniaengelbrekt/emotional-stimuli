@@ -108,13 +108,18 @@ function generateOnce(allWords, o) {
   const warnings = [...feasibility.warnings];
 
   // признаки для сопоставления
-  const useFreq = o.matchFreq && words.every((w) => w.freq != null);
+  // слова без частоты не выключают уравнивание: им подставляется средняя log-частотность
+  const withFreq = words.filter((w) => w.freq != null);
+  const useFreq = o.matchFreq && withFreq.length >= 0.5 * words.length;
   if (o.matchFreq && !useFreq) {
-    warnings.push('Частотность задана не для всех слов — по частотности слова не уравниваются.');
+    warnings.push('Частотность задана менее чем для половины слов — по частотности слова не уравниваются.');
+  } else if (o.matchFreq && withFreq.length < words.length) {
+    warnings.push(`Частотность не задана для ${words.length - withFreq.length} слов — им подставлена средняя; проверьте таблицу.`);
   }
+  const meanLogFreq = withFreq.length ? meanOf(withFreq.map((w) => logFreq(w.freq))) : 0;
   const feat = [];
   if (o.matchLength) feat.push((w) => w.len);
-  if (useFreq) feat.push((w) => logFreq(w.freq));
+  if (useFreq) feat.push((w) => (w.freq == null ? meanLogFreq : logFreq(w.freq)));
   const stats = feat.map((f) => {
     const v = words.map(f);
     return { mu: meanOf(v), sd: sdOf(v) > 0 ? sdOf(v) : 1 };
