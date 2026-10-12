@@ -1,6 +1,6 @@
-import { generateWordStimuli, gridFor, balanceReport, checkFeasibility } from '../js/words/generator.js';
-import { EMOTION_KEYS } from '../js/common/emotions.js';
-import { makeRng } from '../js/common/rng.js';
+import { generateWordStimuli, gridFor, balanceReport, checkFeasibility } from '../emotional/js/words/generator.js';
+import { EMOTION_KEYS } from '../shared/js/common/emotions.js';
+import { makeRng } from '../shared/js/common/rng.js';
 
 function synth(per, seed = 2) {
   const r = makeRng(seed); const ws = []; let n = 0;

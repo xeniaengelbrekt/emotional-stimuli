@@ -2,7 +2,7 @@
    app.js — навигация, справка, запуск модулей
    ============================================================ */
 
-import { $, $$ } from './common/ui.js';
+import { $, $$ } from '../../shared/js/common/ui.js';
 import { initImagesGenerator } from './images/ui.js';
 import { initWordsGenerator } from './words/ui.js';
 import { initAnalysisStubs } from './analysis-stub.js';

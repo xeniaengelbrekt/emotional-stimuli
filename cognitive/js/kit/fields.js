@@ -4,8 +4,8 @@
    через read-функции по id поля.
    ============================================================ */
 
-import { $, $$, esc } from '../../../js/common/ui.js';
-import { parseNum } from '../../../js/common/csv.js';
+import { $, $$, esc } from '../../../shared/js/common/ui.js';
+import { parseNum } from '../../../shared/js/common/csv.js';
 
 const hintHtml = (h) => (h ? `<span class="hint">${h}</span>` : '');
 const wideCls = (o) => (o && o.wide ? ' wide' : '');

@@ -4,10 +4,10 @@
    Стимул: { name, filter?, tag?, badges?, infoHtml?, draw(canvas, scale) }.
    ============================================================ */
 
-import { $, $$, esc, tick, downloadBlob, downloadText, canvasToBlob, openViewer } from '../../../js/common/ui.js';
-import { toCSV } from '../../../js/common/csv.js';
-import { buildZip } from '../../../js/common/zip.js';
-import { toastError, toastSuccess } from '../../../js/core/toast.js';
+import { $, $$, esc, tick, downloadBlob, downloadText, canvasToBlob, openViewer } from '../../../shared/js/common/ui.js';
+import { toCSV } from '../../../shared/js/common/csv.js';
+import { buildZip } from '../../../shared/js/common/zip.js';
+import { toastError, toastSuccess } from '../../../shared/js/core/toast.js';
 import { stamp } from './text.js';
 
 const THUMB_W = 480;

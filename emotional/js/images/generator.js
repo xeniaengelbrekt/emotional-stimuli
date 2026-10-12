@@ -12,9 +12,9 @@
    меньше: иначе эффект эмоции нельзя отделить от «яркости» картинки.
    ============================================================ */
 
-import { makeRng, permutations } from '../common/rng.js';
-import { EMOTIONS, EMOTION_KEYS } from '../common/emotions.js';
-import { oneWayAnova, meanOf, sdOf } from '../core/stats.js';
+import { makeRng, permutations } from '../../../shared/js/common/rng.js';
+import { EMOTIONS, EMOTION_KEYS } from '../../../shared/js/common/emotions.js';
+import { oneWayAnova, meanOf, sdOf } from '../../../shared/js/core/stats.js';
 
 export const GROUPS = [
   { key: 'person',  ru: 'Один человек',   slug: 'person',

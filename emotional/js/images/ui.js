@@ -2,21 +2,21 @@
    images/ui.js — интерфейс «Изображения · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../common/ui.js';
-import { parseCSV, parseNum, findColumn, toCSV } from '../common/csv.js';
-import { buildZip } from '../common/zip.js';
-import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../common/emotions.js';
-import { loadImageFiles } from '../core/loader.js';
-import { computeSaliency } from '../core/algorithms/index.js';
-import { computeMetrics } from '../core/metrics.js';
-import { formatP } from '../core/stats.js';
-import { toastError, toastSuccess, toastInfo } from '../core/toast.js';
+import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../../../shared/js/common/ui.js';
+import { parseCSV, parseNum, findColumn, toCSV } from '../../../shared/js/common/csv.js';
+import { buildZip } from '../../../shared/js/common/zip.js';
+import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../../shared/js/common/emotions.js';
+import { loadImageFiles } from '../../../shared/js/core/loader.js';
+import { computeSaliency } from '../../../shared/js/core/algorithms/index.js';
+import { computeMetrics } from '../../../shared/js/core/metrics.js';
+import { formatP } from '../../../shared/js/core/stats.js';
+import { toastError, toastSuccess, toastInfo } from '../../../shared/js/core/toast.js';
 import {
   GROUPS, GROUP_KEYS, GROUP_BY_KEY, POSITIONS, SAL_KEYS, SAL_LABELS,
   parseGroup, groupFromFilename, generateImageStimuli, checkFeasibility, balanceReport,
 } from './generator.js';
 import { tileRects, fitImage, drawImageStimulus } from './render.js';
-import { drawInstruction, IMAGES_INSTRUCTION } from '../common/instruction.js';
+import { drawInstruction, IMAGES_INSTRUCTION } from '../../../shared/js/common/instruction.js';
 
 const state = {
   items: [],

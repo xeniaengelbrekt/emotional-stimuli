@@ -3,417 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Эмоциональные стимулы — генератор и анализ</title>
+  <title>Генераторы стимулов — выбор приложения</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23050a08%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279%27 fill=%27none%27 stroke=%27%234ade80%27 stroke-width=%272.5%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%234ade80%27/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="shared/css/style.css">
+  <link rel="stylesheet" href="shared/css/app.css">
+  <script>
+    // Старые ссылки вида …/#word-gen вели на эмоциональное приложение — сохраняем их работоспособность
+    if (/^#(img-gen|img-an|word-gen|word-an)$/.test(location.hash)) location.replace('emotional/index.html' + location.hash);
+  </script>
 </head>
 <body class="on-home">
   <div class="grid-bg" aria-hidden="true"></div>
 
   <header class="page-header">
-    <a class="logo" href="#home" title="На главную">
+    <a class="logo" href="./" title="На главную">
       <span class="logo-mark">◎</span>
-      <span class="logo-text">Эмоциональные стимулы</span>
-      <span class="logo-en">(Emotional stimuli)</span>
+      <span class="logo-text">Генераторы стимулов</span>
+      <span class="logo-en">(Stimulus generators)</span>
     </a>
-    <div class="header-actions">
-      <a class="help-btn" href="cognitive/index.html" title="Генератор когнитивных стимулов">
-        <span class="help-mark">▦</span>
-        <span>Когнитивные стимулы</span>
-      </a>
-      <a class="help-btn" id="homeBtn" href="#home" hidden>
-        <span class="help-mark">←</span>
-        <span>Главная</span>
-      </a>
-      <button class="help-btn" id="helpBtn" type="button" title="Открыть руководство">
-        <span class="help-mark">?</span>
-        <span>Помощь</span>
-      </button>
-    </div>
   </header>
 
   <main class="container">
-    <div class="mode-panels">
-
-      <!-- ==================== ГЛАВНАЯ ==================== -->
-      <section class="mode-panel active" id="mode-home" role="tabpanel">
-
-        <div class="home-tip">
-          <div class="home-tip-mark">◎</div>
-          <div class="home-tip-body">
-            <div class="home-tip-title">Стимулы для оценки эмоционального статуса человека</div>
-            <p>
-              Два эксперимента: <strong class="emphasis">восприятие эмоционально окрашенных изображений</strong>
-              (сетка 2×2 из четырёх картинок) и <strong class="emphasis">поиск эмоционально окрашенных слов</strong>
-              (целевое слово среди дистракторов). Для каждого — генератор стимулов и модуль анализа движений глаз.
-            </p>
-            <p>
-              Генератор сам подбирает материал так, чтобы эмоциональные категории не различались по
-              низкоуровневым признакам: у изображений это салиентность (те же алгоритмы, что в модуле
-              «Салиентность»), у слов — длина и частотность. Положение категорий и целевого слова на экране
-              выравнивается по всему набору.
-            </p>
-            <p class="home-tip-note">
-              Все вычисления выполняются локально в браузере. Изображения и списки слов никуда не передаются.
-            </p>
-          </div>
-        </div>
-
-        <header class="home-section">
-          <h3 class="home-section-title">Эксперимент 1 · Восприятие эмоционально окрашенных изображений</h3>
-          <p class="home-section-sub">Четыре изображения в сетке 2×2: контрольные (одна категория) и экспериментальные (четыре разные)</p>
-        </header>
-        <div class="task-row task-row-2">
-          <a class="task-card task-card-v" href="#img-gen">
-            <header class="tc-head"><span class="tc-num">01</span><span class="tc-icon">⊞</span></header>
-            <h4 class="tc-title">Создание стимулов</h4>
-            <p class="tc-desc">
-              Загрузите изображения и средние оценки массовой валидации (нейтральность, позитивность, грусть,
-              угроза, реалистичность). Система оценит салиентность, определит эмоциональную категорию и соберёт
-              стимулы 2×2 с уравненными положениями категорий.
-            </p>
-            <p class="tc-when">Контрольные и экспериментальные стимулы · PNG-архив с таблицами</p>
-            <span class="tc-arrow">→</span>
-          </a>
-          <a class="task-card task-card-v task-card-dev" href="#img-an">
-            <header class="tc-head"><span class="tc-num">02</span><span class="tc-icon">↔</span></header>
-            <h4 class="tc-title">Анализ движений глаз <span class="dev-badge">в разработке</span></h4>
-            <p class="tc-desc">
-              Загрузка фиксаций, саккад и кликов испытуемых; сравнение групп «норма / не норма»
-              и связь с эмоциональными характеристиками по опросникам.
-            </p>
-            <p class="tc-when">Модель с учётом характеристик стимулов и вмешивающихся факторов</p>
-            <span class="tc-arrow">→</span>
-          </a>
-        </div>
-
-        <header class="home-section home-section-after">
-          <h3 class="home-section-title">Эксперимент 2 · Поиск эмоционально окрашенных слов</h3>
-          <p class="home-section-sub">Инструкция «Найдите слово …» и сетка слов: 20, 30 или 40 на экране</p>
-        </header>
-        <div class="task-row task-row-2">
-          <a class="task-card task-card-v" href="#word-gen">
-            <header class="tc-head"><span class="tc-num">03</span><span class="tc-icon">Аб</span></header>
-            <h4 class="tc-title">Создание стимулов</h4>
-            <p class="tc-desc">
-              Загрузите список слов с оценками по четырём шкалам (и частотностью). Слова собираются в сетки
-              «вразброс»: целевое слово каждый раз в другом месте, дистракторы уравнены с ним по длине и частотности.
-            </p>
-            <p class="tc-when">Три уровня сложности · контрольные и экспериментальные · PNG-архив</p>
-            <span class="tc-arrow">→</span>
-          </a>
-          <a class="task-card task-card-v task-card-dev" href="#word-an">
-            <header class="tc-head"><span class="tc-num">04</span><span class="tc-icon">↔</span></header>
-            <h4 class="tc-title">Анализ движений глаз <span class="dev-badge">в разработке</span></h4>
-            <p class="tc-desc">
-              Загрузка фиксаций, саккад и кликов по слову; сравнение групп и связь с эмоциональными
-              характеристиками по опросникам.
-            </p>
-            <p class="tc-when">Модель с учётом длины, частотности, позиции слова и вмешивающихся факторов</p>
-            <span class="tc-arrow">→</span>
-          </a>
-        </div>
-      </section>
-
-      <!-- ==================== ИЗОБРАЖЕНИЯ: ГЕНЕРАТОР ==================== -->
-      <section class="mode-panel" id="mode-img-gen" role="tabpanel">
-        <header class="panel-header">
-          <h2 class="panel-title"><span class="panel-num">01</span>Изображения · создание стимулов</h2>
-          <p class="panel-desc">
-            Стимул — сетка 2×2 из четырёх изображений одной группы (один человек, группа людей, животные, предметы).
-            Контрольный: все четыре изображения одной эмоциональной категории. Экспериментальный: четыре разные категории,
-            положения категорий по ячейкам не повторяются.
+    <section class="mode-panel active">
+      <div class="home-tip">
+        <div class="home-tip-mark">◎</div>
+        <div class="home-tip-body">
+          <div class="home-tip-title">Выберите приложение</div>
+          <p>
+            Два приложения с общим дизайном, общими принципами подбора (воспроизводимость, проверка выполнимости,
+            отчёт о балансе, выравнивание положений) и одинаковым составом архива: PNG стимулов, инструкция,
+            таблицы с зонами интереса и ключом ответов, файл настроек.
           </p>
-        </header>
-
-        <h3 class="step-title"><span class="step-num">1</span>Изображения и оценки</h3>
-        <div class="dropzone" id="img-dropzone" tabindex="0">
-          <input type="file" id="img-file" accept="image/jpeg,image/png,image/webp,image/bmp" multiple hidden>
-          <div class="dropzone-inner">
-            <div class="dropzone-icon">⤓</div>
-            <p class="dropzone-text">Перетащите изображения сюда</p>
-            <p class="dropzone-or">— или —</p>
-            <button class="btn btn-primary" type="button">Выбрать файлы</button>
-            <p class="dropzone-hint">JPG · PNG · WebP · BMP — сразу много</p>
-          </div>
+          <p class="home-tip-note">Все вычисления выполняются локально в браузере. Файлы никуда не передаются.</p>
         </div>
+      </div>
 
-        <div class="toolbar tool-gap">
-          <label class="btn" for="img-ratings-file">↑ Загрузить таблицу оценок (CSV)</label>
-          <input type="file" id="img-ratings-file" accept=".csv,.tsv,.txt" hidden>
-          <button class="btn btn-ghost" id="img-template" type="button">↓ Скачать образец таблицы</button>
-          <span class="toolbar-info" id="img-ratings-info">Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность</span>
-          <span class="toolbar-spacer"></span>
-          <button class="btn btn-ghost" id="img-clear" type="button" disabled>⊘ Убрать все изображения</button>
-        </div>
-
-        <div class="busy-bar tool-gap" id="img-busy" hidden>
-          <span class="busy-spinner"></span><span id="img-busy-text">Оценка салиентности…</span>
-        </div>
-
-        <div id="img-table-block" hidden>
-          <div class="toolbar tool-gap">
-            <span class="toolbar-info" id="img-count"></span>
-            <span class="toolbar-spacer"></span>
-            <span class="toolbar-info">Назначить группу всем изображениям, у которых она не указана:</span>
-            <div class="select-wrap select-inline"><select id="img-bulk-group"></select></div>
-            <button class="btn" id="img-bulk-apply" type="button">Назначить</button>
-          </div>
-          <div class="data-table-wrap table-scroll tool-gap">
-            <table class="data-table" id="img-table"></table>
-          </div>
-        </div>
-
-        <h3 class="step-title"><span class="step-num">2</span>Параметры</h3>
-        <div class="params-card">
-          <div class="form-grid">
-            <div class="field"><label for="img-w">Размер стимула: ширина × высота, пикс.</label>
-              <div class="pair"><input type="number" id="img-w" value="1920" min="320" step="1"><span>×</span><input type="number" id="img-h" value="1080" min="240" step="1"></div></div>
-            <div class="field"><label for="img-pad">Отступ картинки от краёв ячейки, пикс.</label>
-              <input type="number" id="img-pad" value="40" min="0" step="1"></div>
-            <div class="field"><label for="img-gap">Расстояние между ячейками, пикс.</label>
-              <input type="number" id="img-gap" value="0" min="0" step="1"></div>
-            <div class="field"><label for="img-margin">Отступ сетки от краёв экрана, пикс.</label>
-              <input type="number" id="img-margin" value="0" min="0" step="1"></div>
-            <div class="field"><label for="img-fit">Как помещать картинку в ячейку</label>
-              <div class="select-wrap"><select id="img-fit">
-                <option value="contain">Целиком, без обрезки</option>
-                <option value="cover">Обрезать края до размера ячейки</option>
-              </select></div></div>
-            <div class="field"><label for="img-bg">Цвет фона стимула</label>
-              <input type="color" id="img-bg" value="#7f7f7f"></div>
-          </div>
-          <div class="form-sep"></div>
-          <div class="form-grid">
-            <div class="field"><label for="img-method">Алгоритм оценки салиентности</label>
-              <div class="select-wrap"><select id="img-method">
-                <option value="ft">FT — для цветных сцен (рекомендуется)</option>
-                <option value="local">Local Contrast — цветовой контраст</option>
-                <option value="dog">DoG — по яркости</option>
-                <option value="sr">SR — спектральный остаток (яркость)</option>
-              </select></div></div>
-            <div class="field"><label>Показатели салиентности, по которым уравниваются картинки внутри стимула</label>
-              <div class="check-row" id="img-metrics"></div></div>
-            <div class="field"><label for="img-margin-cat">Минимальный отрыв главной шкалы от второй, баллы</label>
-              <input type="number" id="img-margin-cat" value="0" min="0" step="0.1"><span class="hint">Эмоция картинки — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше этого значения, картинка считается «смешанной» и не используется. 0 — не ограничивать.</span></div>
-            <div class="field"><label for="img-minreal">Минимальная реалистичность</label>
-              <input type="number" id="img-minreal" placeholder="не ограничивать" step="0.1"><span class="hint">Картинки с оценкой реалистичности ниже порога не используются.</span></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="img-zscale"><span>Сравнивать шкалы в стандартизованном виде (z-оценки)
-              <em>Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.</em></span></label></div>
-          </div>
-          <div class="form-sep"></div>
-          <div class="form-grid">
-            <div class="field"><label for="img-ctrl">Контрольных стимулов на каждую эмоцию в каждой группе</label>
-              <input type="number" id="img-ctrl" value="1" min="0" step="1"></div>
-            <div class="field"><label for="img-exp">Экспериментальных стимулов на каждую группу</label>
-              <input type="number" id="img-exp" value="4" min="0" step="1"></div>
-            <div class="field"><label>Какие группы изображений использовать</label>
-              <div class="check-row" id="img-groups"></div></div>
-            <div class="field"><label for="img-seed">Номер случайного набора</label>
-              <input type="number" id="img-seed" value="1" step="1"><span class="hint">При том же номере и тех же данных получится тот же набор стимулов. Поменяйте номер, чтобы получить другой.</span></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="img-repeats"><span>Разрешить использовать одно изображение в нескольких стимулах
-              <em>Если выключено и изображений не хватает, появится предупреждение.</em></span></label></div>
-          </div>
-        
-          <div class="form-sep"></div>
-          <h4 class="params-sub">Инструкция для участника</h4>
-          <p class="muted-p">Сохраняется в архив как отдельная картинка <code>instruction.png</code> того же размера, что и стимулы. Покажите её перед началом эксперимента.</p>
-          <div class="form-grid">
-            <div class="field wide"><label class="check"><input type="checkbox" id="img-instr-on" checked><span>Добавить инструкцию в архив</span></label></div>
-            <div class="field"><label for="img-instr-title">Заголовок</label>
-              <input type="text" id="img-instr-title" value="Инструкция"></div>
-            <div class="field"><label for="img-instr-footer">Надпись внизу экрана (что нажать, чтобы начать)</label>
-              <input type="text" id="img-instr-footer" value="Чтобы начать, нажмите ПРОБЕЛ"></div>
-            <div class="field wide"><label for="img-instr-body">Текст инструкции (каждый абзац с новой строки)</label>
-              <textarea id="img-instr-body" rows="6"></textarea>
-              <span class="hint">Проверьте, что текст соответствует вашей процедуре: что именно должен делать участник и какими клавишами или кнопкой мыши.</span></div>
-          </div>
-          <div class="instr-preview"><canvas id="img-instr-canvas"></canvas></div>
-        </div>
-
-        <div id="img-feas"></div>
-
-        <div class="toolbar tool-gap">
-          <span class="toolbar-info" id="img-plan"></span>
-          <span class="toolbar-spacer"></span>
-          <button class="btn btn-primary" id="img-generate" type="button" disabled>◎ Сформировать стимулы</button>
-        </div>
-
-        <div id="img-results" hidden></div>
-      </section>
-
-      <!-- ==================== ИЗОБРАЖЕНИЯ: АНАЛИЗ ==================== -->
-      <section class="mode-panel" id="mode-img-an" role="tabpanel">
-        <header class="panel-header">
-          <h2 class="panel-title"><span class="panel-num">02</span>Изображения · анализ движений глаз <span class="dev-badge">в разработке</span></h2>
-          <p class="panel-desc">
-            Модуль ещё не готов. Ниже — что он будет делать и какие данные ему понадобятся.
+      <div class="task-row task-row-2">
+        <a class="task-card task-card-v" href="emotional/index.html">
+          <header class="tc-head"><span class="tc-num">A</span><span class="tc-icon">◎</span></header>
+          <h4 class="tc-title">Эмоциональные стимулы</h4>
+          <p class="tc-desc">
+            Восприятие эмоционально окрашенных изображений (сетка 2×2) и поиск эмоционально окрашенных слов.
+            Подбор по оценкам эмоций, салиентности, длине и частотности слов. Анализ движений глаз — в разработке.
           </p>
-        </header>
-        <div id="img-an-body"></div>
-      </section>
-
-      <!-- ==================== СЛОВА: ГЕНЕРАТОР ==================== -->
-      <section class="mode-panel" id="mode-word-gen" role="tabpanel">
-        <header class="panel-header">
-          <h2 class="panel-title"><span class="panel-num">03</span>Слова · создание стимулов</h2>
-          <p class="panel-desc">
-            Сверху — инструкция «Найдите слово …», под ней — сетка слов, расставленных вразброс; целевое слово
-            каждый раз в другом месте экрана. Контрольный стимул: все слова одной эмоциональной категории.
-            Экспериментальный: дистракторы из других категорий в равных долях.
+          <p class="tc-when">Контрольные и экспериментальные стимулы · PNG-архив с таблицами</p>
+          <span class="tc-arrow">→</span>
+        </a>
+        <a class="task-card task-card-v" href="cognitive/index.html">
+          <header class="tc-head"><span class="tc-num">B</span><span class="tc-icon">⊞</span></header>
+          <h4 class="tc-title">Когнитивные стимулы</h4>
+          <p class="tc-desc">
+            Ментальное вращение, филворд, определение различий, траектории. Параметры сложности,
+            ключ ответов, инструкции. Анализ движений глаз — в разработке.
           </p>
-        </header>
-
-        <h3 class="step-title"><span class="step-num">1</span>Список слов</h3>
-        <div class="dropzone" id="word-dropzone" tabindex="0">
-          <input type="file" id="word-file" accept=".csv,.tsv,.txt" hidden>
-          <div class="dropzone-inner">
-            <div class="dropzone-icon">⤓</div>
-            <p class="dropzone-text">Перетащите CSV со словами сюда</p>
-            <p class="dropzone-or">— или —</p>
-            <button class="btn btn-primary" type="button">Выбрать файл</button>
-            <p class="dropzone-hint">Слово · нейтральность · позитивность · грусть · угроза · частотность</p>
-          </div>
-        </div>
-        <div class="toolbar tool-gap">
-          <button class="btn btn-ghost" id="word-template" type="button">↓ Скачать образец таблицы</button>
-          <span class="toolbar-info" id="word-info">Столбцы: слово, нейтральность, позитивность, грусть, угроза, частотность (необязательно, на миллион слов); длина считается автоматически</span>
-          <span class="toolbar-spacer"></span>
-          <button class="btn btn-ghost" id="word-clear" type="button" disabled>⊘ Убрать все слова</button>
-        </div>
-        <div id="word-table-block" hidden>
-          <div class="data-table-wrap table-scroll tool-gap">
-            <table class="data-table" id="word-table"></table>
-          </div>
-        </div>
-
-        <h3 class="step-title"><span class="step-num">2</span>Параметры</h3>
-        <div class="params-card">
-          <div class="form-grid">
-            <div class="field"><label for="word-w">Размер стимула: ширина × высота, пикс.</label>
-              <div class="pair"><input type="number" id="word-w" value="1920" min="640" step="1"><span>×</span><input type="number" id="word-h" value="1080" min="480" step="1"></div></div>
-            <div class="field"><label for="word-font">Шрифт слов</label>
-              <div class="select-wrap"><select id="word-font">
-                <option value="Arial, Helvetica, sans-serif">Arial</option>
-                <option value="Verdana, Geneva, sans-serif">Verdana</option>
-                <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
-                <option value="Calibri, Carlito, sans-serif">Calibri</option>
-                <option value="'Segoe UI', Roboto, sans-serif">Segoe UI</option>
-                <option value="'Times New Roman', Times, serif">Times New Roman</option>
-                <option value="Georgia, serif">Georgia</option>
-                <option value="'Courier New', monospace">Courier New (моноширинный)</option>
-                <option value="custom">Другой шрифт — ввести название…</option>
-              </select></div>
-              <input type="text" id="word-font-custom" placeholder="Название шрифта, например PT Sans" hidden>
-              <span class="hint">Шрифт должен быть установлен на компьютере, на котором вы формируете стимулы: картинки рисуются с его помощью.</span></div>
-            <div class="field"><label for="word-size">Размер шрифта слов, пикс.</label>
-              <input type="number" id="word-size" value="40" min="10" step="1">
-              <span class="hint" id="word-size-hint">Загрузите список слов — размер подберётся по самому большому уровню сложности.</span>
-              <button class="btn btn-ghost btn-small" id="word-size-apply" type="button" hidden>Применить рекомендуемый размер</button></div>
-            <div class="field"><label for="word-case">Написание букв</label>
-              <div class="select-wrap"><select id="word-case">
-                <option value="asis">Как в списке слов</option>
-                <option value="lower">все строчные</option>
-                <option value="upper">ВСЕ ЗАГЛАВНЫЕ</option>
-              </select></div></div>
-            <div class="field"><label for="word-jitter">Степень «разброса» слов внутри ячейки</label>
-              <input type="range" id="word-jitter" min="0" max="100" value="70"></div>
-            <div class="field"><label>Цвет фона / цвет текста</label>
-              <div class="pair"><input type="color" id="word-bg" value="#d9d9d9"><span>/</span><input type="color" id="word-fg" value="#111111"></div></div>
-            <div class="field wide"><label for="word-instr">Надпись над таблицей слов ({word} — искомое слово)</label>
-              <input type="text" id="word-instr" value="Найдите слово: {word}"></div>
-          </div>
-          <div class="form-sep"></div>
-          <div class="form-grid">
-            <div class="field"><label for="word-levels">Уровни сложности: число слов на экране (через запятую)</label>
-              <input type="text" id="word-levels" value="20, 30, 40"></div>
-            <div class="field"><label for="word-ctrl">Контрольных стимулов на каждую эмоцию на каждом уровне</label>
-              <input type="number" id="word-ctrl" value="1" min="0" step="1"></div>
-            <div class="field"><label for="word-exp">Экспериментальных стимулов на каждую эмоцию искомого слова на каждом уровне</label>
-              <input type="number" id="word-exp" value="1" min="0" step="1"></div>
-            <div class="field"><label for="word-dmode">Слова-помехи (дистракторы) в экспериментальных стимулах</label>
-              <div class="select-wrap"><select id="word-dmode">
-                <option value="other">Только из других эмоций (по умолчанию)</option>
-                <option value="all">Из всех четырёх эмоций поровну</option>
-              </select></div></div>
-            <div class="field"><label>Подбирать слова, близкие по</label>
-              <div class="check-row">
-                <label class="check"><input type="checkbox" id="word-mlen" checked><span>длине</span></label>
-                <label class="check"><input type="checkbox" id="word-mfreq" checked><span>частотности</span></label>
-              </div></div>
-            <div class="field"><label for="word-margin">Минимальный отрыв главной шкалы от второй, баллы</label>
-              <input type="number" id="word-margin" value="0" min="0" step="0.1"><span class="hint">Эмоция слова — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше, слово «смешанное» и не используется. 0 — не ограничивать.</span></div>
-            <div class="field"><label for="word-seed">Номер случайного набора</label>
-              <input type="number" id="word-seed" value="1" step="1"><span class="hint">При том же номере и тех же данных получится тот же набор. Поменяйте номер, чтобы получить другой.</span></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="word-zscale"><span>Сравнивать шкалы в стандартизованном виде (z-оценки)
-              <em>Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.</em></span></label></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="word-repeats"><span>Разрешить использовать одно слово в нескольких стимулах
-              <em>Если выключено и слов не хватает, появится предупреждение.</em></span></label></div>
-          </div>
-        
-          <div class="form-sep"></div>
-          <h4 class="params-sub">Инструкция для участника</h4>
-          <p class="muted-p">Сохраняется в архив как отдельная картинка <code>instruction.png</code> того же размера, что и стимулы. Покажите её перед началом эксперимента.</p>
-          <div class="form-grid">
-            <div class="field wide"><label class="check"><input type="checkbox" id="word-instr-on" checked><span>Добавить инструкцию в архив</span></label></div>
-            <div class="field"><label for="word-instr-title">Заголовок</label>
-              <input type="text" id="word-instr-title" value="Инструкция"></div>
-            <div class="field"><label for="word-instr-footer">Надпись внизу экрана (что нажать, чтобы начать)</label>
-              <input type="text" id="word-instr-footer" value="Чтобы начать, нажмите ПРОБЕЛ"></div>
-            <div class="field wide"><label for="word-instr-body">Текст инструкции (каждый абзац с новой строки)</label>
-              <textarea id="word-instr-body" rows="6"></textarea>
-              <span class="hint">Проверьте, что текст соответствует вашей процедуре: что именно должен делать участник и какими клавишами или кнопкой мыши.</span></div>
-          </div>
-          <div class="instr-preview"><canvas id="word-instr-canvas"></canvas></div>
-        </div>
-
-        <div id="word-feas"></div>
-
-        <div class="toolbar tool-gap">
-          <span class="toolbar-info" id="word-plan"></span>
-          <span class="toolbar-spacer"></span>
-          <button class="btn btn-primary" id="word-generate" type="button" disabled>◎ Сформировать стимулы</button>
-        </div>
-
-        <div id="word-results" hidden></div>
-      </section>
-
-      <!-- ==================== СЛОВА: АНАЛИЗ ==================== -->
-      <section class="mode-panel" id="mode-word-an" role="tabpanel">
-        <header class="panel-header">
-          <h2 class="panel-title"><span class="panel-num">04</span>Слова · анализ движений глаз <span class="dev-badge">в разработке</span></h2>
-          <p class="panel-desc">
-            Модуль ещё не готов. Ниже — что он будет делать и какие данные ему понадобятся.
-          </p>
-        </header>
-        <div id="word-an-body"></div>
-      </section>
-
-    </div>
+          <p class="tc-when">Задания разной сложности · PNG-архив с ключом ответов</p>
+          <span class="tc-arrow">→</span>
+        </a>
+      </div>
+    </section>
 
     <footer class="page-footer">
       <span class="foot-mark">◎</span>
-      <span>Эмоциональные стимулы · алгоритмы салиентности — из модуля «Салиентность» · всё считается в браузере</span>
+      <span>Генераторы стимулов · всё считается в браузере</span>
     </footer>
   </main>
-
-  <!-- ==================== ПОМОЩЬ ==================== -->
-  <div class="modal" id="helpModal" hidden>
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-      <header class="modal-head">
-        <h2 class="modal-title" id="helpTitle">Руководство</h2>
-        <button class="modal-close" type="button" data-close aria-label="Закрыть">×</button>
-      </header>
-      <nav class="modal-nav" id="helpNav"></nav>
-      <div class="modal-body" id="helpBody"></div>
-    </div>
-  </div>
-
-  <script type="module" src="js/app.js"></script>
+  <style>.home-tip { margin-bottom: 28px; } a.task-card, a.task-card:hover { text-decoration: none; color: inherit; }</style>
 </body>
 </html>

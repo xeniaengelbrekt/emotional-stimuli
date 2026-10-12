@@ -3,9 +3,9 @@
    (алгоритмы и метрики — из модуля «Салиентность»).
    ============================================================ */
 
-import { computeSaliency, METHOD_LABELS } from '../../../js/core/algorithms/index.js';
-import { computeMetrics } from '../../../js/core/metrics.js';
-import { workSize } from '../../../js/core/loader.js';
+import { computeSaliency, METHOD_LABELS } from '../../../shared/js/core/algorithms/index.js';
+import { computeMetrics } from '../../../shared/js/core/metrics.js';
+import { workSize } from '../../../shared/js/core/loader.js';
 
 export { METHOD_LABELS };
 export const SAL_KEYS = ['mean', 'entropy', 'center_bias', 'spread_pct'];
@@ -51,7 +51,7 @@ export function relativeAoiSalience(map, rect, W, H) {
 
 /* ---------- баланс салиентности между условиями ---------- */
 
-import { meanOf, sdOf, oneWayAnova, formatP } from '../../../js/core/stats.js';
+import { meanOf, sdOf, oneWayAnova, formatP } from '../../../shared/js/core/stats.js';
 
 /**
  * list — стимулы с полем sal ({mean, entropy, …}); groupOf(stim) → ключ условия; groups = [[ключ, подпись]].

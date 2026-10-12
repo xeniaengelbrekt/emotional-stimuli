@@ -4,8 +4,8 @@
    Рисуется тем же размером и цветами, что и стимулы.
    ============================================================ */
 
-import { $, $$, esc } from '../../../js/common/ui.js';
-import { readableTextColor } from '../../../js/common/instruction.js';
+import { $, $$, esc } from '../../../shared/js/common/ui.js';
+import { readableTextColor } from '../../../shared/js/common/instruction.js';
 import { measureText } from './text.js';
 
 /** «Привет **мир**» → [{t:'Привет ', b:false}, {t:'мир', b:true}] */

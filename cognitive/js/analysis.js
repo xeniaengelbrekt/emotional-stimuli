@@ -4,8 +4,8 @@
    чтобы таблицы можно было готовить заранее.
    ============================================================ */
 
-import { $, downloadText } from '../../js/common/ui.js';
-import { toCSV } from '../../js/common/csv.js';
+import { $, downloadText } from '../../shared/js/common/ui.js';
+import { toCSV } from '../../shared/js/common/csv.js';
 
 const KEYS = `
   <table class="help-table"><thead><tr><th>Методика</th><th>Что отвечает участник</th><th>Что берётся из архива стимулов</th></tr></thead><tbody>

@@ -19,7 +19,7 @@
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
 
-import { makeRng } from '../../../js/common/rng.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
 
 export const DIRECTIONS = {
   ascending:  { ru: 'По возрастанию (1 → N)', short: 'asc' },

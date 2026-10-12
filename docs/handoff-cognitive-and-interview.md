@@ -8,9 +8,9 @@
 
 ## 1. Платформа и дизайн
 
-* **[есть]** Статические страницы на ES-модулях, без сборки и сервера: `index.html` (эмоциональные стимулы), `cognitive/index.html` (когнитивные).
+* **[есть]** Статические страницы на ES-модулях, без сборки и сервера: `emotional/index.html` (эмоциональные стимулы), `cognitive/index.html` (когнитивные).
   Запуск — любой HTTP-сервер (`npm start`), подходит GitHub Pages. Тесты логики — `npm test` (Node, без зависимостей).
-* **[есть]** Тема «Салиентности»: `css/style.css` (тёмная лаборатория, зелёный акцент) + `css/app.css` (формы, таблицы, галереи) +
+* **[есть]** Тема «Салиентности»: `shared/css/style.css` (тёмная лаборатория, зелёный акцент) + `shared/css/app.css` (формы, таблицы, галереи) +
   `cognitive/css/cognitive.css`. Новые продукты подключают те же файлы и свой маленький CSS; шрифты — Cormorant Garamond, Inter, JetBrains Mono.
 * **[есть]** Структура: панели `mode-panel` с маршрутизацией по `location.hash`; панель собирается из JS (`cognitive/js/kit/panel.js`, `fields.js`),
   справка — модальное окно с вкладками (`help.js`). Новый модуль = папка `generator.js` (чистая логика, без DOM) + `render.js` (canvas) + `ui.js`.
@@ -20,17 +20,17 @@
 
 | Файл | Что даёт |
 |---|---|
-| `js/common/rng.js` | `makeRng(seed)` (mulberry32): `next`, `int`, `range`, `shuffle`; одинаковый seed → одинаковый набор |
-| `js/common/csv.js` | `parseCSV` (авто-разделитель `; , Tab`, кавычки, BOM), `parseNum` (десятичная запятая), `findColumn` (синонимы колонок), `toCSV` |
-| `js/common/zip.js` | `buildZip` — ZIP без зависимостей (STORE, имена UTF-8), `crc32` |
-| `js/common/instruction.js` | экран инструкции в PNG; `cognitive/js/kit/instr.js` — то же с **жирным** и редактором текста |
-| `js/common/ui.js` | `$`, `$$`, `esc`, `tick`, `bindDropzone`, `openViewer` (окно просмотра), `downloadBlob/Text`, `canvasToBlob` |
-| `js/core/stats.js` | `meanOf`, `sdOf`, `meanCI95`, `oneWayAnova`, `formatP`, распределения (t, F, неполная бета) |
-| `js/core/algorithms/*`, `metrics.js` | салиентность (FT, DoG, Local, SR) и метрики; обёртка `cognitive/js/kit/salience.js` |
+| `shared/js/common/rng.js` | `makeRng(seed)` (mulberry32): `next`, `int`, `range`, `shuffle`; одинаковый seed → одинаковый набор |
+| `shared/js/common/csv.js` | `parseCSV` (авто-разделитель `; , Tab`, кавычки, BOM), `parseNum` (десятичная запятая), `findColumn` (синонимы колонок), `toCSV` |
+| `shared/js/common/zip.js` | `buildZip` — ZIP без зависимостей (STORE, имена UTF-8), `crc32` |
+| `shared/js/common/instruction.js` | экран инструкции в PNG; `cognitive/js/kit/instr.js` — то же с **жирным** и редактором текста |
+| `shared/js/common/ui.js` | `$`, `$$`, `esc`, `tick`, `bindDropzone`, `openViewer` (окно просмотра), `downloadBlob/Text`, `canvasToBlob` |
+| `shared/js/core/stats.js` | `meanOf`, `sdOf`, `meanCI95`, `oneWayAnova`, `formatP`, распределения (t, F, неполная бета) |
+| `shared/js/core/algorithms/*`, `metrics.js` | салиентность (FT, DoG, Local, SR) и метрики; обёртка `cognitive/js/kit/salience.js` |
 | `cognitive/js/kit/results.js` | галерея, просмотр, ZIP со всем составом архива (годится для любого набора PNG) |
 | `cognitive/js/kit/palette.js` | цвета равной светлоты (OKLCH) |
 
-Правило: общее — в `js/common` и `cognitive/js/kit`, логика методики — в её папке; зависимости между методиками не допускаются.
+Правило: общее — в `shared/js/common` и `cognitive/js/kit`, логика методики — в её папке; зависимости между методиками не допускаются.
 
 ## 3. Принципы генераторов (сохранять во всех продуктах)
 

@@ -13,9 +13,9 @@
    с эффектом длины или частотности).
    ============================================================ */
 
-import { makeRng } from '../common/rng.js';
-import { EMOTIONS, EMOTION_KEYS } from '../common/emotions.js';
-import { oneWayAnova, meanOf, sdOf } from '../core/stats.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
+import { EMOTIONS, EMOTION_KEYS } from '../../../shared/js/common/emotions.js';
+import { oneWayAnova, meanOf, sdOf } from '../../../shared/js/core/stats.js';
 
 export const DEFAULT_OPTIONS = {
   levels: [20, 30, 40],

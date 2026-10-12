@@ -17,7 +17,7 @@
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
 
-import { makeRng } from '../../../js/common/rng.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
 
 export const TRANSFORMS = {
   cw90:   { ru: 'Поворот на 90° по часовой стрелке', short: 'rot-cw90',  action: 'повернуть фигуру-задание **по часовой стрелке на 90 градусов**' },

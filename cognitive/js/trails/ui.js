@@ -4,8 +4,8 @@
    параметры, а любой столбец можно применить ко всем сразу.
    ============================================================ */
 
-import { $, $$, esc, tick } from '../../../js/common/ui.js';
-import { toastError, toastSuccess, toastInfo } from '../../../js/core/toast.js';
+import { $, $$, esc, tick } from '../../../shared/js/common/ui.js';
+import { toastError, toastSuccess, toastInfo } from '../../../shared/js/core/toast.js';
 import { fld, fontField, bindFont, readFont, readInt, readNum, readStr, readChecks, parseIntList, onAnyChange } from '../kit/fields.js';
 import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } from '../kit/panel.js';
 import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../kit/instr.js';

@@ -2,15 +2,15 @@
    words/ui.js — интерфейс «Слова · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../common/ui.js';
-import { parseCSV, parseNum, findColumn, toCSV } from '../common/csv.js';
-import { buildZip } from '../common/zip.js';
-import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../common/emotions.js';
-import { formatP } from '../core/stats.js';
-import { toastError, toastSuccess, toastInfo } from '../core/toast.js';
+import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../../../shared/js/common/ui.js';
+import { parseCSV, parseNum, findColumn, toCSV } from '../../../shared/js/common/csv.js';
+import { buildZip } from '../../../shared/js/common/zip.js';
+import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../../shared/js/common/emotions.js';
+import { formatP } from '../../../shared/js/core/stats.js';
+import { toastError, toastSuccess, toastInfo } from '../../../shared/js/core/toast.js';
 import { generateWordStimuli, checkFeasibility, balanceReport, logFreq, gridFor } from './generator.js';
 import { drawWordStimulus, fitFontSizes, applyCase, recommendFontSize } from './render.js';
-import { drawInstruction, WORDS_INSTRUCTION } from '../common/instruction.js';
+import { drawInstruction, WORDS_INSTRUCTION } from '../../../shared/js/common/instruction.js';
 
 const state = { rawRows: [], words: [], result: null, fontSizes: null, fileName: '', sizeTouched: false, recSize: null };
 

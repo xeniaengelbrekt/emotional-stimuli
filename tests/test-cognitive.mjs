@@ -2,7 +2,7 @@ import { generateRotation, patternKey, applyOp, OPTION_SETS, TRANSFORM_KEYS } fr
 import { generateVerbal, findOccurrences, cleanWord } from '../cognitive/js/verbal/generator.js';
 import { generateDiff } from '../cognitive/js/diff/generator.js';
 import { buildRows, generateTrails, layoutTrail } from '../cognitive/js/trails/generator.js';
-import { makeRng } from '../js/common/rng.js';
+import { makeRng } from '../shared/js/common/rng.js';
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok  ', m); };

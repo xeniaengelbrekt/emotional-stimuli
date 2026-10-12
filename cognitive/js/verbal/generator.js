@@ -19,8 +19,8 @@
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
 
-import { makeRng } from '../../../js/common/rng.js';
-import { EMOTION_KEYS } from '../../../js/common/emotions.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
+import { EMOTION_KEYS } from '../../../shared/js/common/emotions.js';
 
 export const ORIENTATIONS = {
   horizontal: { ru: 'Горизонталь (слева направо)', short: 'horizontal' },

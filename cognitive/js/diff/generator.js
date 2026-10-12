@@ -12,7 +12,7 @@
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
 
-import { makeRng } from '../../../js/common/rng.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
 
 export const OBJECT_TYPES = {
   letters: { ru: 'Буквы', short: 'letters' },

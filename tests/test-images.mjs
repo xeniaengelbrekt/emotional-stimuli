@@ -1,6 +1,6 @@
-import { generateImageStimuli, checkFeasibility, GROUP_KEYS, POSITIONS, parseGroup, groupFromFilename, balanceReport } from '../js/images/generator.js';
-import { EMOTION_KEYS } from '../js/common/emotions.js';
-import { makeRng } from '../js/common/rng.js';
+import { generateImageStimuli, checkFeasibility, GROUP_KEYS, POSITIONS, parseGroup, groupFromFilename, balanceReport } from '../emotional/js/images/generator.js';
+import { EMOTION_KEYS } from '../shared/js/common/emotions.js';
+import { makeRng } from '../shared/js/common/rng.js';
 
 function synth(perCell, seed = 5) {
   const r = makeRng(seed); const items = [];

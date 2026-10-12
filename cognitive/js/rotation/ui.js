@@ -2,8 +2,8 @@
    rotation/ui.js — «Плоскостное ментальное вращение · создание стимулов»
    ============================================================ */
 
-import { $, esc, tick } from '../../../js/common/ui.js';
-import { toastError, toastSuccess } from '../../../js/core/toast.js';
+import { $, esc, tick } from '../../../shared/js/common/ui.js';
+import { toastError, toastSuccess } from '../../../shared/js/core/toast.js';
 import { fld, fontField, bindFont, readFont, readInt, readNum, readStr, readCheck, readChecks, parseIntList, onAnyChange } from '../kit/fields.js';
 import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } from '../kit/panel.js';
 import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../kit/instr.js';

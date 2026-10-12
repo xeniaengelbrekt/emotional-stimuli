@@ -2,11 +2,11 @@
    verbal/ui.js — «Вербальное мышление (филворд) · создание стимулов»
    ============================================================ */
 
-import { $, esc, tick, bindDropzone, downloadText, readText } from '../../../js/common/ui.js';
-import { parseCSV, parseNum, findColumn, toCSV } from '../../../js/common/csv.js';
-import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../../js/common/emotions.js';
-import { meanOf, sdOf, oneWayAnova, formatP } from '../../../js/core/stats.js';
-import { toastError, toastSuccess } from '../../../js/core/toast.js';
+import { $, esc, tick, bindDropzone, downloadText, readText } from '../../../shared/js/common/ui.js';
+import { parseCSV, parseNum, findColumn, toCSV } from '../../../shared/js/common/csv.js';
+import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../../shared/js/common/emotions.js';
+import { meanOf, sdOf, oneWayAnova, formatP } from '../../../shared/js/core/stats.js';
+import { toastError, toastSuccess } from '../../../shared/js/core/toast.js';
 import { fld, fontField, bindFont, readFont, readInt, readNum, readStr, readCheck, readChecks, onAnyChange } from '../kit/fields.js';
 import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } from '../kit/panel.js';
 import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../kit/instr.js';

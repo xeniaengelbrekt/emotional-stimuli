@@ -3,7 +3,7 @@
    «Найдите слово: …», ниже — сетка букв (и цифр).
    ============================================================ */
 
-import { makeRng } from '../../../js/common/rng.js';
+import { makeRng } from '../../../shared/js/common/rng.js';
 import { equalLightnessPalette } from '../kit/palette.js';
 import { prepareCanvas } from '../kit/text.js';
 import { cellFills } from './generator.js';
