@@ -16,6 +16,7 @@ import {
   parseGroup, groupFromFilename, generateImageStimuli, checkFeasibility, balanceReport,
 } from './generator.js';
 import { tileRects, fitImage, drawImageStimulus } from './render.js';
+import { drawInstruction, IMAGES_INSTRUCTION } from '../common/instruction.js';
 
 const state = {
   items: [],
@@ -231,7 +232,7 @@ function renderTable() {
   recomputeCategories();
   $('#img-table-block').hidden = !state.items.length;
   $('#img-clear').disabled = !state.items.length;
-  const head = `<thead><tr><th></th><th>Файл</th><th>Группа</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Реалист.</th><th>Категория</th><th>Салиентность (mean)</th></tr></thead>`;
+  const head = `<thead><tr><th></th><th>Файл</th><th>Группа</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Реалистичность</th><th>Эмоция</th><th>Средняя салиентность</th></tr></thead>`;
   const body = state.items.map((it) => `
     <tr data-id="${it.id}">
       <td><img class="row-thumb" src="${it.thumb}" alt=""></td>
@@ -437,7 +438,7 @@ function view(st) {
   }).join('');
   openViewer({
     title: st.name,
-    info: `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Ячейка</th><th>Файл</th><th>Категория</th><th>Салиентность (mean)</th></tr></thead><tbody>${rows}</tbody></table></div>`,
+    info: `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Ячейка</th><th>Файл</th><th>Эмоция</th><th>Средняя салиентность</th></tr></thead><tbody>${rows}</tbody></table></div>`,
     canvasFactory: () => {
       const c = document.createElement('canvas');
       drawImageStimulus(c, st, (id) => state.items.find((x) => x.id === id).img, r.layout);
@@ -506,6 +507,12 @@ async function downloadArchive() {
       const blob = await canvasToBlob(canvas);
       entries.push({ name: `stimuli/${st.name}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
     }
+    const ins = readInstruction();
+    if (ins.on) {
+      drawInstruction(canvas, instructionOpts(r.layout, ins));
+      const blob = await canvasToBlob(canvas);
+      entries.unshift({ name: 'instruction.png', data: new Uint8Array(await blob.arrayBuffer()) });
+    }
     const { stimuliRows, tilesRows } = buildManifests();
     const bom = '﻿';
     entries.push({ name: 'stimuli.csv', data: enc.encode(bom + toCSV(stimuliRows)) });
@@ -513,6 +520,7 @@ async function downloadArchive() {
     entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({
       experiment: 'images-2x2', generated: new Date().toISOString(),
       options: r.options, layout: r.layout, saliencyMethod: r.method, seedUsed: r.seedUsed,
+      instruction: ins.on ? { title: ins.title, body: ins.body, footer: ins.footer } : null,
     }, null, 2)) });
     const zip = buildZip(entries);
     downloadBlob(new Blob([zip], { type: 'application/zip' }), `emotional_images_stimuli_${stamp()}.zip`);
@@ -523,6 +531,26 @@ async function downloadArchive() {
     busy.hidden = true;
     $('#img-dl-zip').disabled = false;
   }
+}
+
+/* ---------------- инструкция ---------------- */
+
+const readInstruction = () => ({
+  on: $('#img-instr-on').checked,
+  title: $('#img-instr-title').value.trim(),
+  body: $('#img-instr-body').value,
+  footer: $('#img-instr-footer').value.trim(),
+});
+
+const instructionOpts = (L, ins) => ({
+  width: L.width, height: L.height, background: L.background,
+  fontFamily: 'Arial, Helvetica, sans-serif', title: ins.title, body: ins.body, footer: ins.footer,
+});
+
+function updateInstructionPreview() {
+  const L = readLayout();
+  const s = 960 / L.width;
+  drawInstruction($('#img-instr-canvas'), instructionOpts({ ...L, width: Math.round(L.width * s), height: Math.round(L.height * s) }, readInstruction()));
 }
 
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
@@ -545,7 +573,7 @@ export function initImagesGenerator() {
   $('#img-template').addEventListener('click', downloadTemplate);
   $('#img-clear').addEventListener('click', () => {
     state.items = []; state.ratings.clear();
-    $('#img-ratings-info').textContent = 'Колонки: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность';
+    $('#img-ratings-info').textContent = 'Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность';
     invalidateResult(); renderTable();
   });
   $('#img-bulk-apply').addEventListener('click', () => {
@@ -557,10 +585,15 @@ export function initImagesGenerator() {
   });
   $('#img-table').addEventListener('change', onTableEdit);
   $('#img-method').addEventListener('change', recomputeSalience);
+  $('#img-instr-body').value = IMAGES_INSTRUCTION.body;
+  $('#img-instr-title').value = IMAGES_INSTRUCTION.title;
+  $('#img-instr-footer').value = IMAGES_INSTRUCTION.footer;
   $$('#mode-img-gen .params-card input, #mode-img-gen .params-card select').forEach((el) => {
-    if (el.id === 'img-method') return;
-    el.addEventListener('change', () => { invalidateResult(); refreshDerived(); });
+    if (el.id === 'img-method' || el.id.includes('-instr-')) return;
+    el.addEventListener('change', () => { invalidateResult(); refreshDerived(); updateInstructionPreview(); });
   });
+  $$('#mode-img-gen [id^="img-instr-"]').forEach((el) => el.addEventListener('input', updateInstructionPreview));
+  updateInstructionPreview();
   $('#img-generate').addEventListener('click', generate);
   renderFeasibility();
 }

@@ -32,7 +32,10 @@ export const GROUP_BY_KEY = Object.fromEntries(GROUPS.map((g) => [g.key, g]));
 export const POSITIONS = ['TL', 'TR', 'BL', 'BR'];
 export const SAL_KEYS = ['mean', 'entropy', 'center_bias', 'spread_pct'];
 export const SAL_LABELS = {
-  mean: 'mean', entropy: 'entropy', center_bias: 'center bias', spread_pct: 'spread %',
+  mean: 'средняя салиентность',
+  entropy: 'энтропия карты',
+  center_bias: 'смещение к центру',
+  spread_pct: 'доля заметной площади, %',
 };
 
 const norm = (s) => String(s).toLowerCase().replace(/[^a-zа-яё0-9]/g, '');

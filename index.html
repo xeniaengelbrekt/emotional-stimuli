@@ -139,12 +139,12 @@
         </div>
 
         <div class="toolbar tool-gap">
-          <label class="btn" for="img-ratings-file">↑ CSV с оценками</label>
+          <label class="btn" for="img-ratings-file">↑ Загрузить таблицу оценок (CSV)</label>
           <input type="file" id="img-ratings-file" accept=".csv,.tsv,.txt" hidden>
-          <button class="btn btn-ghost" id="img-template" type="button">↓ Шаблон CSV</button>
-          <span class="toolbar-info" id="img-ratings-info">Колонки: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность</span>
+          <button class="btn btn-ghost" id="img-template" type="button">↓ Скачать образец таблицы</button>
+          <span class="toolbar-info" id="img-ratings-info">Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность</span>
           <span class="toolbar-spacer"></span>
-          <button class="btn btn-ghost" id="img-clear" type="button" disabled>⊘ Очистить</button>
+          <button class="btn btn-ghost" id="img-clear" type="button" disabled>⊘ Убрать все изображения</button>
         </div>
 
         <div class="busy-bar tool-gap" id="img-busy" hidden>
@@ -155,7 +155,7 @@
           <div class="toolbar tool-gap">
             <span class="toolbar-info" id="img-count"></span>
             <span class="toolbar-spacer"></span>
-            <span class="toolbar-info">Группа для всех без группы:</span>
+            <span class="toolbar-info">Назначить группу всем изображениям, у которых она не указана:</span>
             <div class="select-wrap select-inline"><select id="img-bulk-group"></select></div>
             <button class="btn" id="img-bulk-apply" type="button">Назначить</button>
           </div>
@@ -167,53 +167,68 @@
         <h3 class="step-title"><span class="step-num">2</span>Параметры</h3>
         <div class="params-card">
           <div class="form-grid">
-            <div class="field"><label for="img-w">Размер стимула, px</label>
+            <div class="field"><label for="img-w">Размер стимула: ширина × высота, пикс.</label>
               <div class="pair"><input type="number" id="img-w" value="1920" min="320" step="1"><span>×</span><input type="number" id="img-h" value="1080" min="240" step="1"></div></div>
-            <div class="field"><label for="img-pad">Отступ изображения в ячейке, px</label>
+            <div class="field"><label for="img-pad">Отступ картинки от краёв ячейки, пикс.</label>
               <input type="number" id="img-pad" value="40" min="0" step="1"></div>
-            <div class="field"><label for="img-gap">Зазор между ячейками, px</label>
+            <div class="field"><label for="img-gap">Расстояние между ячейками, пикс.</label>
               <input type="number" id="img-gap" value="0" min="0" step="1"></div>
-            <div class="field"><label for="img-margin">Поле по краям экрана, px</label>
+            <div class="field"><label for="img-margin">Отступ сетки от краёв экрана, пикс.</label>
               <input type="number" id="img-margin" value="0" min="0" step="1"></div>
-            <div class="field"><label for="img-fit">Вписывание изображения</label>
+            <div class="field"><label for="img-fit">Как помещать картинку в ячейку</label>
               <div class="select-wrap"><select id="img-fit">
-                <option value="contain">Целиком, с сохранением пропорций</option>
-                <option value="cover">Обрезать по центру до размера плитки</option>
+                <option value="contain">Целиком, без обрезки</option>
+                <option value="cover">Обрезать края до размера ячейки</option>
               </select></div></div>
-            <div class="field"><label for="img-bg">Цвет фона</label>
+            <div class="field"><label for="img-bg">Цвет фона стимула</label>
               <input type="color" id="img-bg" value="#7f7f7f"></div>
           </div>
           <div class="form-sep"></div>
           <div class="form-grid">
-            <div class="field"><label for="img-method">Алгоритм салиентности</label>
+            <div class="field"><label for="img-method">Алгоритм оценки салиентности</label>
               <div class="select-wrap"><select id="img-method">
-                <option value="ft">FT — Frequency-Tuned (цветные реалистичные сцены)</option>
-                <option value="local">Local Contrast (цвет)</option>
-                <option value="dog">DoG (яркость)</option>
-                <option value="sr">SR — Spectral Residual (яркость)</option>
+                <option value="ft">FT — для цветных сцен (рекомендуется)</option>
+                <option value="local">Local Contrast — цветовой контраст</option>
+                <option value="dog">DoG — по яркости</option>
+                <option value="sr">SR — спектральный остаток (яркость)</option>
               </select></div></div>
-            <div class="field"><label>Метрики салиентности для уравнивания</label>
+            <div class="field"><label>Показатели салиентности, по которым уравниваются картинки внутри стимула</label>
               <div class="check-row" id="img-metrics"></div></div>
-            <div class="field"><label for="img-margin-cat">Мин. отрыв лидирующей шкалы от второй</label>
-              <input type="number" id="img-margin-cat" value="0" min="0" step="0.1"></div>
-            <div class="field"><label for="img-minreal">Мин. реалистичность</label>
-              <input type="number" id="img-minreal" placeholder="без порога" step="0.1"></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="img-zscale"><span>Определять категорию по z-оценкам шкал
-              <em>(если шкалы нельзя сравнивать напрямую — разные диапазоны)</em></span></label></div>
+            <div class="field"><label for="img-margin-cat">Минимальный отрыв главной шкалы от второй, баллы</label>
+              <input type="number" id="img-margin-cat" value="0" min="0" step="0.1"><span class="hint">Эмоция картинки — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше этого значения, картинка считается «смешанной» и не используется. 0 — не ограничивать.</span></div>
+            <div class="field"><label for="img-minreal">Минимальная реалистичность</label>
+              <input type="number" id="img-minreal" placeholder="не ограничивать" step="0.1"><span class="hint">Картинки с оценкой реалистичности ниже порога не используются.</span></div>
+            <div class="field wide"><label class="check"><input type="checkbox" id="img-zscale"><span>Сравнивать шкалы в стандартизованном виде (z-оценки)
+              <em>Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.</em></span></label></div>
           </div>
           <div class="form-sep"></div>
           <div class="form-grid">
-            <div class="field"><label for="img-ctrl">Контрольных на категорию в каждой группе</label>
+            <div class="field"><label for="img-ctrl">Контрольных стимулов на каждую эмоцию в каждой группе</label>
               <input type="number" id="img-ctrl" value="1" min="0" step="1"></div>
-            <div class="field"><label for="img-exp">Экспериментальных на каждую группу</label>
+            <div class="field"><label for="img-exp">Экспериментальных стимулов на каждую группу</label>
               <input type="number" id="img-exp" value="4" min="0" step="1"></div>
-            <div class="field"><label>Группы изображений</label>
+            <div class="field"><label>Какие группы изображений использовать</label>
               <div class="check-row" id="img-groups"></div></div>
-            <div class="field"><label for="img-seed">Seed (воспроизводимость)</label>
-              <input type="number" id="img-seed" value="1" step="1"></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="img-repeats"><span>Разрешить повторы изображений
-              <em>(если выключено и изображений не хватает — будет предупреждение)</em></span></label></div>
+            <div class="field"><label for="img-seed">Номер случайного набора</label>
+              <input type="number" id="img-seed" value="1" step="1"><span class="hint">При том же номере и тех же данных получится тот же набор стимулов. Поменяйте номер, чтобы получить другой.</span></div>
+            <div class="field wide"><label class="check"><input type="checkbox" id="img-repeats"><span>Разрешить использовать одно изображение в нескольких стимулах
+              <em>Если выключено и изображений не хватает, появится предупреждение.</em></span></label></div>
           </div>
+        
+          <div class="form-sep"></div>
+          <h4 class="params-sub">Инструкция для участника</h4>
+          <p class="muted-p">Сохраняется в архив как отдельная картинка <code>instruction.png</code> того же размера, что и стимулы. Покажите её перед началом эксперимента.</p>
+          <div class="form-grid">
+            <div class="field wide"><label class="check"><input type="checkbox" id="img-instr-on" checked><span>Добавить инструкцию в архив</span></label></div>
+            <div class="field"><label for="img-instr-title">Заголовок</label>
+              <input type="text" id="img-instr-title" value="Инструкция"></div>
+            <div class="field"><label for="img-instr-footer">Надпись внизу экрана (что нажать, чтобы начать)</label>
+              <input type="text" id="img-instr-footer" value="Чтобы начать, нажмите ПРОБЕЛ"></div>
+            <div class="field wide"><label for="img-instr-body">Текст инструкции (каждый абзац с новой строки)</label>
+              <textarea id="img-instr-body" rows="6"></textarea>
+              <span class="hint">Проверьте, что текст соответствует вашей процедуре: что именно должен делать участник и какими клавишами или кнопкой мыши.</span></div>
+          </div>
+          <div class="instr-preview"><canvas id="img-instr-canvas"></canvas></div>
         </div>
 
         <div id="img-feas"></div>
@@ -261,10 +276,10 @@
           </div>
         </div>
         <div class="toolbar tool-gap">
-          <button class="btn btn-ghost" id="word-template" type="button">↓ Шаблон CSV</button>
-          <span class="toolbar-info" id="word-info">Частотность (ipm) — по желанию; длина считается автоматически</span>
+          <button class="btn btn-ghost" id="word-template" type="button">↓ Скачать образец таблицы</button>
+          <span class="toolbar-info" id="word-info">Столбцы: слово, нейтральность, позитивность, грусть, угроза, частотность (необязательно, на миллион слов); длина считается автоматически</span>
           <span class="toolbar-spacer"></span>
-          <button class="btn btn-ghost" id="word-clear" type="button" disabled>⊘ Очистить</button>
+          <button class="btn btn-ghost" id="word-clear" type="button" disabled>⊘ Убрать все слова</button>
         </div>
         <div id="word-table-block" hidden>
           <div class="data-table-wrap table-scroll tool-gap">
@@ -275,7 +290,7 @@
         <h3 class="step-title"><span class="step-num">2</span>Параметры</h3>
         <div class="params-card">
           <div class="form-grid">
-            <div class="field"><label for="word-w">Размер стимула, px</label>
+            <div class="field"><label for="word-w">Размер стимула: ширина × высота, пикс.</label>
               <div class="pair"><input type="number" id="word-w" value="1920" min="640" step="1"><span>×</span><input type="number" id="word-h" value="1080" min="480" step="1"></div></div>
             <div class="field"><label for="word-font">Шрифт</label>
               <div class="select-wrap"><select id="word-font">
@@ -285,48 +300,63 @@
                 <option value="'Courier New', monospace">Courier New</option>
                 <option value="Georgia, serif">Georgia</option>
               </select></div></div>
-            <div class="field"><label for="word-size">Размер шрифта слов, px (максимум)</label>
-              <input type="number" id="word-size" value="40" min="10" step="1"></div>
-            <div class="field"><label for="word-case">Регистр</label>
+            <div class="field"><label for="word-size">Размер шрифта слов, пикс.</label>
+              <input type="number" id="word-size" value="40" min="10" step="1"><span class="hint">Это максимум: если слова не помещаются в ячейки, шрифт уменьшается на всём уровне сложности одинаково.</span></div>
+            <div class="field"><label for="word-case">Написание букв</label>
               <div class="select-wrap"><select id="word-case">
-                <option value="asis">Как в списке</option>
-                <option value="lower">строчные</option>
-                <option value="upper">ЗАГЛАВНЫЕ</option>
+                <option value="asis">Как в списке слов</option>
+                <option value="lower">все строчные</option>
+                <option value="upper">ВСЕ ЗАГЛАВНЫЕ</option>
               </select></div></div>
-            <div class="field"><label for="word-jitter">Разброс слов внутри ячейки</label>
+            <div class="field"><label for="word-jitter">Степень «разброса» слов внутри ячейки</label>
               <input type="range" id="word-jitter" min="0" max="100" value="70"></div>
-            <div class="field"><label>Цвета: фон / текст</label>
+            <div class="field"><label>Цвет фона / цвет текста</label>
               <div class="pair"><input type="color" id="word-bg" value="#d9d9d9"><span>/</span><input type="color" id="word-fg" value="#111111"></div></div>
-            <div class="field wide"><label for="word-instr">Текст инструкции ({word} — целевое слово)</label>
+            <div class="field wide"><label for="word-instr">Надпись над таблицей слов ({word} — искомое слово)</label>
               <input type="text" id="word-instr" value="Найдите слово: {word}"></div>
           </div>
           <div class="form-sep"></div>
           <div class="form-grid">
-            <div class="field"><label for="word-levels">Уровни сложности (число слов), через запятую</label>
+            <div class="field"><label for="word-levels">Уровни сложности: число слов на экране (через запятую)</label>
               <input type="text" id="word-levels" value="20, 30, 40"></div>
-            <div class="field"><label for="word-ctrl">Контрольных на категорию на каждом уровне</label>
+            <div class="field"><label for="word-ctrl">Контрольных стимулов на каждую эмоцию на каждом уровне</label>
               <input type="number" id="word-ctrl" value="1" min="0" step="1"></div>
-            <div class="field"><label for="word-exp">Экспериментальных на категорию целевых слов на уровне</label>
+            <div class="field"><label for="word-exp">Экспериментальных стимулов на каждую эмоцию искомого слова на каждом уровне</label>
               <input type="number" id="word-exp" value="1" min="0" step="1"></div>
-            <div class="field"><label for="word-dmode">Дистракторы в экспериментальных</label>
+            <div class="field"><label for="word-dmode">Слова-помехи (дистракторы) в экспериментальных стимулах</label>
               <div class="select-wrap"><select id="word-dmode">
-                <option value="other">Только из других категорий (по умолчанию)</option>
-                <option value="all">Из всех четырёх категорий поровну</option>
+                <option value="other">Только из других эмоций (по умолчанию)</option>
+                <option value="all">Из всех четырёх эмоций поровну</option>
               </select></div></div>
-            <div class="field"><label>Уравнивать слова по</label>
+            <div class="field"><label>Подбирать слова, близкие по</label>
               <div class="check-row">
                 <label class="check"><input type="checkbox" id="word-mlen" checked><span>длине</span></label>
                 <label class="check"><input type="checkbox" id="word-mfreq" checked><span>частотности</span></label>
               </div></div>
-            <div class="field"><label for="word-margin">Мин. отрыв лидирующей шкалы от второй</label>
-              <input type="number" id="word-margin" value="0" min="0" step="0.1"></div>
-            <div class="field"><label for="word-seed">Seed (воспроизводимость)</label>
-              <input type="number" id="word-seed" value="1" step="1"></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="word-zscale"><span>Определять категорию по z-оценкам шкал
-              <em>(если шкалы нельзя сравнивать напрямую)</em></span></label></div>
-            <div class="field wide"><label class="check"><input type="checkbox" id="word-repeats"><span>Разрешить повторы слов
-              <em>(если выключено и слов не хватает — будет предупреждение)</em></span></label></div>
+            <div class="field"><label for="word-margin">Минимальный отрыв главной шкалы от второй, баллы</label>
+              <input type="number" id="word-margin" value="0" min="0" step="0.1"><span class="hint">Эмоция слова — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше, слово «смешанное» и не используется. 0 — не ограничивать.</span></div>
+            <div class="field"><label for="word-seed">Номер случайного набора</label>
+              <input type="number" id="word-seed" value="1" step="1"><span class="hint">При том же номере и тех же данных получится тот же набор. Поменяйте номер, чтобы получить другой.</span></div>
+            <div class="field wide"><label class="check"><input type="checkbox" id="word-zscale"><span>Сравнивать шкалы в стандартизованном виде (z-оценки)
+              <em>Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.</em></span></label></div>
+            <div class="field wide"><label class="check"><input type="checkbox" id="word-repeats"><span>Разрешить использовать одно слово в нескольких стимулах
+              <em>Если выключено и слов не хватает, появится предупреждение.</em></span></label></div>
           </div>
+        
+          <div class="form-sep"></div>
+          <h4 class="params-sub">Инструкция для участника</h4>
+          <p class="muted-p">Сохраняется в архив как отдельная картинка <code>instruction.png</code> того же размера, что и стимулы. Покажите её перед началом эксперимента.</p>
+          <div class="form-grid">
+            <div class="field wide"><label class="check"><input type="checkbox" id="word-instr-on" checked><span>Добавить инструкцию в архив</span></label></div>
+            <div class="field"><label for="word-instr-title">Заголовок</label>
+              <input type="text" id="word-instr-title" value="Инструкция"></div>
+            <div class="field"><label for="word-instr-footer">Надпись внизу экрана (что нажать, чтобы начать)</label>
+              <input type="text" id="word-instr-footer" value="Чтобы начать, нажмите ПРОБЕЛ"></div>
+            <div class="field wide"><label for="word-instr-body">Текст инструкции (каждый абзац с новой строки)</label>
+              <textarea id="word-instr-body" rows="6"></textarea>
+              <span class="hint">Проверьте, что текст соответствует вашей процедуре: что именно должен делать участник и какими клавишами или кнопкой мыши.</span></div>
+          </div>
+          <div class="instr-preview"><canvas id="word-instr-canvas"></canvas></div>
         </div>
 
         <div id="word-feas"></div>

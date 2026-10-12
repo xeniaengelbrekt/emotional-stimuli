@@ -10,6 +10,7 @@ import { formatP } from '../core/stats.js';
 import { toastError, toastSuccess, toastInfo } from '../core/toast.js';
 import { generateWordStimuli, checkFeasibility, balanceReport, logFreq, gridFor } from './generator.js';
 import { drawWordStimulus, fitFontSizes, applyCase } from './render.js';
+import { drawInstruction, WORDS_INSTRUCTION } from '../common/instruction.js';
 
 const state = { rawRows: [], words: [], result: null, fontSizes: null, fileName: '' };
 
@@ -111,7 +112,7 @@ function refreshWords() {
   $('#word-clear').disabled = !state.rawRows.length;
   $('#word-table-block').hidden = !state.words.length;
   const LIMIT = 300;
-  const head = `<thead><tr><th>Слово</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Категория</th><th>Длина</th><th>Частотность</th></tr></thead>`;
+  const head = `<thead><tr><th>Слово</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Эмоция</th><th>Длина, букв</th><th>Частотность</th></tr></thead>`;
   const body = state.words.slice(0, LIMIT).map((w) => `
     <tr><td>${esc(w.word)}</td>${EMOTION_KEYS.map((k) => `<td class="num">${w.ratings[k]}</td>`).join('')}
     <td>${chip(w.category)}</td><td class="num">${w.len}</td><td class="num">${w.freq ?? '—'}</td></tr>`).join('');
@@ -363,12 +364,19 @@ async function downloadArchive() {
       const blob = await canvasToBlob(canvas);
       entries.push({ name: `stimuli/${st.name}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
     }
+    const ins = readInstruction();
+    if (ins.on) {
+      drawInstruction(canvas, instructionOpts(r.layout, ins));
+      const blob = await canvasToBlob(canvas);
+      entries.unshift({ name: 'instruction.png', data: new Uint8Array(await blob.arrayBuffer()) });
+    }
     const { stimuliRows, wordsRows } = manifestsFrom(boxes);
     entries.push({ name: 'stimuli.csv', data: enc.encode('﻿' + toCSV(stimuliRows)) });
     entries.push({ name: 'stimuli_words.csv', data: enc.encode('﻿' + toCSV(wordsRows)) });
     entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({
       experiment: 'word-search', generated: new Date().toISOString(),
       options: r.options, layout: r.layout, fontSizes: state.fontSizes, seedUsed: r.seedUsed, wordList: state.fileName,
+      instruction: ins.on ? { title: ins.title, body: ins.body, footer: ins.footer } : null,
     }, null, 2)) });
     downloadBlob(new Blob([buildZip(entries)], { type: 'application/zip' }), `emotional_words_stimuli_${stamp()}.zip`);
     toastSuccess(`Архив готов: ${r.stimuli.length} PNG + таблицы`);
@@ -378,6 +386,26 @@ async function downloadArchive() {
     busy.hidden = true;
     $('#word-dl-zip').disabled = false;
   }
+}
+
+/* ---------------- инструкция ---------------- */
+
+const readInstruction = () => ({
+  on: $('#word-instr-on').checked,
+  title: $('#word-instr-title').value.trim(),
+  body: $('#word-instr-body').value,
+  footer: $('#word-instr-footer').value.trim(),
+});
+
+const instructionOpts = (L, ins) => ({
+  width: L.width, height: L.height, background: L.background, color: L.color,
+  fontFamily: L.fontFamily, title: ins.title, body: ins.body, footer: ins.footer,
+});
+
+function updateInstructionPreview() {
+  const L = readLayout();
+  const s = 960 / L.width;
+  drawInstruction($('#word-instr-canvas'), instructionOpts({ ...L, width: Math.round(L.width * s), height: Math.round(L.height * s) }, readInstruction()));
 }
 
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
@@ -399,16 +427,23 @@ export function initWordsGenerator() {
   $('#word-template').addEventListener('click', downloadTemplate);
   $('#word-clear').addEventListener('click', () => {
     state.rawRows = []; state.words = [];
-    $('#word-info').textContent = 'Частотность (ipm) — по желанию; длина считается автоматически';
+    $('#word-info').textContent = 'Столбцы: слово, нейтральность, позитивность, грусть, угроза, частотность (необязательно, на миллион слов); длина считается автоматически';
     invalidate(); refreshWords();
   });
+  $('#word-instr-body').value = WORDS_INSTRUCTION.body;
+  $('#word-instr-title').value = WORDS_INSTRUCTION.title;
+  $('#word-instr-footer').value = WORDS_INSTRUCTION.footer;
+  $$('#mode-word-gen [id^="word-instr-"]').forEach((el) => el.addEventListener('input', updateInstructionPreview));
   $$('#mode-word-gen .params-card input, #mode-word-gen .params-card select').forEach((el) => {
+    if (el.id.startsWith('word-instr-')) return;
     el.addEventListener('change', () => {
+      updateInstructionPreview();
       invalidate();
       if (el.id === 'word-margin' || el.id === 'word-zscale') refreshWords(); else renderFeasibility();
     });
   });
   $('#word-generate').addEventListener('click', generate);
+  updateInstructionPreview();
   renderFeasibility();
 }
 

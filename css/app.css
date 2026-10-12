@@ -232,3 +232,23 @@ input[type="color"] {
 }
 
 a.task-card, a.task-card:hover { text-decoration: none; color: inherit; }
+
+/* Подсказки под полями, многострочный текст, предпросмотр инструкции */
+.hint { font-family: var(--font-sans); font-size: 12px; line-height: 1.5; color: var(--text-mute); }
+textarea {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-bright);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12); }
+.params-sub { margin: 0 0 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--green); }
+.params-card code { color: var(--serif-warm); font-size: 12px; }
+.instr-preview { margin-top: 18px; max-width: 640px; }
+.instr-preview canvas { width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: var(--radius); }
