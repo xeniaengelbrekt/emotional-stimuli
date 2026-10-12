@@ -292,16 +292,24 @@
           <div class="form-grid">
             <div class="field"><label for="word-w">Размер стимула: ширина × высота, пикс.</label>
               <div class="pair"><input type="number" id="word-w" value="1920" min="640" step="1"><span>×</span><input type="number" id="word-h" value="1080" min="480" step="1"></div></div>
-            <div class="field"><label for="word-font">Шрифт</label>
+            <div class="field"><label for="word-font">Шрифт слов</label>
               <div class="select-wrap"><select id="word-font">
                 <option value="Arial, Helvetica, sans-serif">Arial</option>
                 <option value="Verdana, Geneva, sans-serif">Verdana</option>
+                <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+                <option value="Calibri, Carlito, sans-serif">Calibri</option>
+                <option value="'Segoe UI', Roboto, sans-serif">Segoe UI</option>
                 <option value="'Times New Roman', Times, serif">Times New Roman</option>
-                <option value="'Courier New', monospace">Courier New</option>
                 <option value="Georgia, serif">Georgia</option>
-              </select></div></div>
+                <option value="'Courier New', monospace">Courier New (моноширинный)</option>
+                <option value="custom">Другой шрифт — ввести название…</option>
+              </select></div>
+              <input type="text" id="word-font-custom" placeholder="Название шрифта, например PT Sans" hidden>
+              <span class="hint">Шрифт должен быть установлен на компьютере, на котором вы формируете стимулы: картинки рисуются с его помощью.</span></div>
             <div class="field"><label for="word-size">Размер шрифта слов, пикс.</label>
-              <input type="number" id="word-size" value="40" min="10" step="1"><span class="hint">Это максимум: если слова не помещаются в ячейки, шрифт уменьшается на всём уровне сложности одинаково.</span></div>
+              <input type="number" id="word-size" value="40" min="10" step="1">
+              <span class="hint" id="word-size-hint">Загрузите список слов — размер подберётся по самому большому уровню сложности.</span>
+              <button class="btn btn-ghost btn-small" id="word-size-apply" type="button" hidden>Применить рекомендуемый размер</button></div>
             <div class="field"><label for="word-case">Написание букв</label>
               <div class="select-wrap"><select id="word-case">
                 <option value="asis">Как в списке слов</option>

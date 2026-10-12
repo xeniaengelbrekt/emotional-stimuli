@@ -9,10 +9,10 @@ import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotio
 import { formatP } from '../core/stats.js';
 import { toastError, toastSuccess, toastInfo } from '../core/toast.js';
 import { generateWordStimuli, checkFeasibility, balanceReport, logFreq, gridFor } from './generator.js';
-import { drawWordStimulus, fitFontSizes, applyCase } from './render.js';
+import { drawWordStimulus, fitFontSizes, applyCase, recommendFontSize } from './render.js';
 import { drawInstruction, WORDS_INSTRUCTION } from '../common/instruction.js';
 
-const state = { rawRows: [], words: [], result: null, fontSizes: null, fileName: '' };
+const state = { rawRows: [], words: [], result: null, fontSizes: null, fileName: '', sizeTouched: false, recSize: null };
 
 const WORD_COL = ['word', 'слово', 'stimulus', 'стимул', 'lemma', 'лемма'];
 const FREQ_COL = ['freq', 'frequency', 'частотность', 'частота', 'ipm', 'fpm', 'freqipm'];
@@ -33,13 +33,44 @@ function readOptions() {
   };
 }
 
+function readFontFamily() {
+  const v = $('#word-font').value;
+  if (v !== 'custom') return v;
+  const name = $('#word-font-custom').value.trim().replace(/['"]/g, '');
+  return name ? `'${name}', Arial, sans-serif` : 'Arial, Helvetica, sans-serif';
+}
+
+/** Рекомендуемый размер — по уровню с наибольшим числом слов и самому длинному слову списка. */
+function updateSizeRecommendation() {
+  const hint = $('#word-size-hint');
+  const btn = $('#word-size-apply');
+  const eligible = state.words.filter((w) => w.category);
+  if (!eligible.length) {
+    state.recSize = null;
+    btn.hidden = true;
+    hint.textContent = 'Загрузите список слов — размер подберётся по самому большому уровню сложности.';
+    return;
+  }
+  const levels = readOptions().levels;
+  const N = Math.max(...levels);
+  const rec = recommendFontSize(eligible.map((w) => w.word), readLayout(), N, measurer);
+  state.recSize = rec.size;
+  if (!state.sizeTouched) $('#word-size').value = rec.size;
+  const cur = num('#word-size', rec.size);
+  hint.innerHTML = `Рекомендуется <strong class="hl">${rec.size} пикс.</strong> — по уровню с наибольшим числом слов (${N}): ` +
+    `сетка ${rec.cols}×${rec.rows}, ячейка ${rec.cellW}×${rec.cellH} пикс., самое длинное слово «${esc(rec.longest)}». ` +
+    (cur > rec.size ? '<span class="warn-text">Заданный размер больше: слова на этом уровне будут уменьшены автоматически.</span> ' : '') +
+    'Заданный размер — максимум: если слова не помещаются, шрифт уровня уменьшается.';
+  btn.hidden = cur === rec.size;
+}
+
 function readLayout() {
   const W = Math.max(640, Math.round(num('#word-w', 1920)));
   const H = Math.max(480, Math.round(num('#word-h', 1080)));
   const k = W / 1920;
   return {
     width: W, height: H,
-    fontFamily: $('#word-font').value,
+    fontFamily: readFontFamily(),
     fontSize: Math.max(10, num('#word-size', 40)),
     textCase: $('#word-case').value,
     jitter: num('#word-jitter', 70) / 100,
@@ -88,6 +119,7 @@ async function loadFile(files) {
       (dup ? ` · повторов в списке пропущено: ${dup}` : '') + (bad ? ` · без полных оценок: ${bad}` : '');
     if (!state.rawRows.length) { toastError('В файле нет подходящих строк'); return; }
     invalidate();
+    state.sizeTouched = false;
     refreshWords();
     toastSuccess(`Загружено слов: ${state.rawRows.length}`);
   } catch (e) {
@@ -119,6 +151,7 @@ function refreshWords() {
   const more = state.words.length > LIMIT ? `<tr><td colspan="9" class="muted">… и ещё ${state.words.length - LIMIT} (показаны первые ${LIMIT})</td></tr>` : '';
   $('#word-table').innerHTML = head + `<tbody>${body}${more}</tbody>`;
   renderFeasibility();
+  updateSizeRecommendation();
 }
 
 /* ---------------- выполнимость ---------------- */
@@ -438,11 +471,18 @@ export function initWordsGenerator() {
     if (el.id.startsWith('word-instr-')) return;
     el.addEventListener('change', () => {
       updateInstructionPreview();
+      updateSizeRecommendation();
       invalidate();
       if (el.id === 'word-margin' || el.id === 'word-zscale') refreshWords(); else renderFeasibility();
     });
   });
   $('#word-generate').addEventListener('click', generate);
+  $('#word-font').addEventListener('change', () => { $('#word-font-custom').hidden = $('#word-font').value !== 'custom'; });
+  $('#word-font-custom').addEventListener('change', () => { invalidate(); updateInstructionPreview(); updateSizeRecommendation(); });
+  $('#word-size').addEventListener('input', () => { state.sizeTouched = true; updateSizeRecommendation(); });
+  $('#word-size-apply').addEventListener('click', () => {
+    state.sizeTouched = false; $('#word-size').value = state.recSize; invalidate(); updateSizeRecommendation();
+  });
   updateInstructionPreview();
   renderFeasibility();
 }

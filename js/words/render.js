@@ -5,6 +5,8 @@
    расположение выглядит «вразброс», а не таблицей.
    ============================================================ */
 
+import { gridFor } from './generator.js';
+
 export const DEFAULT_LAYOUT = {
   width: 1920,
   height: 1080,
@@ -55,6 +57,28 @@ export function fitFontSizes(stimuli, layout, measure) {
     sizes[st.N] = Math.max(8, Math.min(size, Math.floor(cellH * 0.6)));
   }
   return sizes;
+}
+
+/**
+ * Рекомендуемый размер шрифта для уровня с N словами: самый крупный (но не более maxSize),
+ * при котором самое длинное из words помещается в ячейку сетки и строка не выше ячейки.
+ * Возвращает { size, longest, cellW, cellH, rows, cols }.
+ */
+export function recommendFontSize(words, layout, N, measure, maxSize = 72) {
+  const L = { ...DEFAULT_LAYOUT, ...layout };
+  const area = gridArea(L);
+  const grid = gridFor(N, area.w, area.h);
+  const cellW = area.w / grid.cols;
+  const cellH = area.h / grid.rows;
+  let longest = '', longestW = 0;
+  for (const w of words) {
+    const text = applyCase(w, L.textCase);
+    const width = measure(text, fontStr(L, 100));
+    if (width > longestW) { longestW = width; longest = w; }
+  }
+  const byWidth = longestW > 0 ? Math.floor((100 * cellW * 0.92) / longestW) : maxSize;
+  const size = Math.max(8, Math.min(maxSize, byWidth, Math.floor(cellH * 0.6)));
+  return { size, longest, cellW: Math.round(cellW), cellH: Math.round(cellH), ...grid };
 }
 
 /**
