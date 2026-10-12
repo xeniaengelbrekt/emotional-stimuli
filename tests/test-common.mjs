@@ -1,6 +1,6 @@
-import { parseCSV, parseNum, findColumn } from '../shared/js/common/csv.js';
-import { buildZip, crc32 } from '../shared/js/common/zip.js';
-import { classifyEmotion } from '../shared/js/common/emotions.js';
+import { parseCSV, parseNum, findColumn } from '../js/common/csv.js';
+import { buildZip, crc32 } from '../js/common/zip.js';
+import { classifyEmotion } from '../js/common/emotions.js';
 let fails = 0;
 const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok  ', m); };
 const p = parseCSV('﻿файл;нейтральность;грусть\r\na.jpg;"3,5";1,2\r\n');
