@@ -48,7 +48,7 @@ export const DEFAULTS = {
   distractors: ['none', 'letter'],
   letters: ['А'],
   dCount: 1,
-  spacings: ['fixed'],
+  spacings: ['fixed', 'varied'],
   perVariant: 1,
   seed: 1,
 };

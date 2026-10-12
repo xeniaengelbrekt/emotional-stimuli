@@ -121,9 +121,9 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
 /* ---------- траектории ---------- */
 {
   const rows = buildRows({});
-  ok(rows.length === 8, 'траектории: по умолчанию 8 стимулов');
+  ok(rows.length === 16, 'траектории: по умолчанию 16 стимулов (с фиксированным и разным расстоянием)');
   const st = generateTrails(rows, { width: 1920, height: 1080, seed: 1 });
-  ok(new Set(st.map((s) => s.name)).size === 8, 'траектории: имена уникальны');
+  ok(new Set(st.map((s) => s.name)).size === 16, 'траектории: имена уникальны');
   let good = true;
   for (const s of st) {
     const items = s.layout.items;
@@ -137,8 +137,8 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
     if (s.spec.arrangement === 'straight' ? ys.length !== 1 : ys.length !== 2) good = false;
   }
   ok(good, 'траектории: 15 чисел в 3 строки, дистрактор не вместо 1 и 15, прямая/зигзаг');
-  const a = st.find((s) => s.spec.arrangement === 'straight' && s.spec.direction === 'ascending' && s.spec.distractor === 'none');
-  const b = st.find((s) => s.spec.arrangement === 'straight' && s.spec.direction === 'descending' && s.spec.distractor === 'none');
+  const a = st.find((s) => s.spec.arrangement === 'straight' && s.spec.direction === 'ascending' && s.spec.distractor === 'none' && s.spec.spacing === 'fixed');
+  const b = st.find((s) => s.spec.arrangement === 'straight' && s.spec.direction === 'descending' && s.spec.distractor === 'none' && s.spec.spacing === 'fixed');
   ok(JSON.stringify(a.layout.items) === JSON.stringify(b.layout.items), 'траектории: направление не меняет расположение чисел');
   const v = layoutTrail({ n: 15, rows: 3, arrangement: 'straight', distractor: 'none', spacing: 'varied', dCount: 0 }, { width: 1920, height: 1080, spread: 0.4 }, makeRng(2));
   const xs = v.items.filter((i) => i.row === 1).map((i) => i.x).sort((p, q) => p - q);
