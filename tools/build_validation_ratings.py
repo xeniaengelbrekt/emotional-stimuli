@@ -93,7 +93,7 @@ def main(folder, old_path, out_dir, min_agree=0.3, max_same=0.6):
     fmt = lambda x, d=2: '' if x is None else f'{x:.{d}f}'.replace('.', ',')
     cols = ['файл', 'группа', 'метка_автора', 'нейтральность', 'позитивность', 'грусть', 'угроза', 'реалистичность', 'число_оценок',
             'sd_нейтральность', 'sd_позитивность', 'sd_грусть', 'sd_угроза', 'sd_реалистичность', 'опрос_№', 'фото_в_опросе',
-            'прежнее_число_оценок', 'сдвиг_нейтральность', 'сдвиг_позитивность', 'сдвиг_грусть', 'сдвиг_угроза', 'сдвиг_реалистичность', 'примечание']
+            'метка_в_опросе', 'прежнее_число_оценок', 'сдвиг_нейтральность', 'сдвиг_позитивность', 'сдвиг_грусть', 'сдвиг_угроза', 'сдвиг_реалистичность', 'примечание']
     quality, tables = [], {'all': [], 'filtered': []}
     for n, s in sorted(files.items()):
         q = respondent_quality(s['resp'], s['n_photos'])
@@ -112,6 +112,18 @@ def main(folder, old_path, out_dir, min_agree=0.3, max_same=0.6):
                     row[sc] = fmt(ps[sc][0]); row['sd_' + sc] = fmt(ps[sc][1])
                     row['сдвиг_' + sc] = fmt(ps[sc][0] - f(r0[sc])) if ps[sc][0] is not None else ''
                 tables[mode].append(row)
+    # метки авторов не уникальны (у разных картинок встречается одно имя) и местами с пробелами: делаем имя файла уникальным
+    norm = lambda t: re.sub(r'[\s]+', '_', t.strip())
+    count = {}
+    for r in tables['all']:
+        count[norm(r['файл'])] = count.get(norm(r['файл']), 0) + 1
+    for rows in tables.values():
+        for r in rows:
+            r['метка_в_опросе'] = r['файл']
+            base = norm(r['файл'])
+            r['файл'] = base if count[base] == 1 else f"{base}__s{int(r['опрос_№']):02d}p{int(r['фото_в_опросе']):02d}"
+            if r['файл'] != r['метка_в_опросе']:
+                r['примечание'] = (r['примечание'] + '; ' if r['примечание'] else '') + 'имя сделано уникальным'
     os.makedirs(out_dir, exist_ok=True)
     for name, rows in (('photos_ratings_updated_all.csv', tables['all']), ('photos_ratings_updated_filtered.csv', tables['filtered'])):
         with open(os.path.join(out_dir, name), 'w', encoding='utf-8-sig', newline='') as fh:
