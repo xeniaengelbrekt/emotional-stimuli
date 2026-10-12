@@ -3,73 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Генераторы стимулов — выбор приложения</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23050a08%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279%27 fill=%27none%27 stroke=%27%234ade80%27 stroke-width=%272.5%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%234ade80%27/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="shared/css/style.css">
-  <link rel="stylesheet" href="shared/css/app.css">
+  <meta name="robots" content="noindex">
+  <title>Стимулы</title>
+  <style>html, body { margin: 0; height: 100%; background: #050a08; }</style>
   <script>
     // Старые ссылки вида …/#word-gen вели на эмоциональное приложение — сохраняем их работоспособность
     if (/^#(img-gen|img-an|word-gen|word-an)$/.test(location.hash)) location.replace('emotional/index.html' + location.hash);
   </script>
 </head>
-<body class="on-home">
-  <div class="grid-bg" aria-hidden="true"></div>
-
-  <header class="page-header">
-    <a class="logo" href="./" title="На главную">
-      <span class="logo-mark">◎</span>
-      <span class="logo-text">Генераторы стимулов</span>
-      <span class="logo-en">(Stimulus generators)</span>
-    </a>
-  </header>
-
-  <main class="container">
-    <section class="mode-panel active">
-      <div class="home-tip">
-        <div class="home-tip-mark">◎</div>
-        <div class="home-tip-body">
-          <div class="home-tip-title">Выберите приложение</div>
-          <p>
-            Два приложения с общим дизайном, общими принципами подбора (воспроизводимость, проверка выполнимости,
-            отчёт о балансе, выравнивание положений) и одинаковым составом архива: PNG стимулов, инструкция,
-            таблицы с зонами интереса и ключом ответов, файл настроек.
-          </p>
-          <p class="home-tip-note">Все вычисления выполняются локально в браузере. Файлы никуда не передаются.</p>
-        </div>
-      </div>
-
-      <div class="task-row task-row-2">
-        <a class="task-card task-card-v" href="emotional/index.html">
-          <header class="tc-head"><span class="tc-num">A</span><span class="tc-icon">◎</span></header>
-          <h4 class="tc-title">Эмоциональные стимулы</h4>
-          <p class="tc-desc">
-            Восприятие эмоционально окрашенных изображений (сетка 2×2) и поиск эмоционально окрашенных слов.
-            Подбор по оценкам эмоций, салиентности, длине и частотности слов. Анализ движений глаз — в разработке.
-          </p>
-          <p class="tc-when">Контрольные и экспериментальные стимулы · PNG-архив с таблицами</p>
-          <span class="tc-arrow">→</span>
-        </a>
-        <a class="task-card task-card-v" href="cognitive/index.html">
-          <header class="tc-head"><span class="tc-num">B</span><span class="tc-icon">⊞</span></header>
-          <h4 class="tc-title">Когнитивные стимулы</h4>
-          <p class="tc-desc">
-            Ментальное вращение, филворд, определение различий, траектории. Параметры сложности,
-            ключ ответов, инструкции. Анализ движений глаз — в разработке.
-          </p>
-          <p class="tc-when">Задания разной сложности · PNG-архив с ключом ответов</p>
-          <span class="tc-arrow">→</span>
-        </a>
-      </div>
-    </section>
-
-    <footer class="page-footer">
-      <span class="foot-mark">◎</span>
-      <span>Генераторы стимулов · всё считается в браузере</span>
-    </footer>
-  </main>
-  <style>.home-tip { margin-bottom: 28px; } a.task-card, a.task-card:hover { text-decoration: none; color: inherit; }</style>
-</body>
+<body></body>
 </html>

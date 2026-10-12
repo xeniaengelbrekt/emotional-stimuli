@@ -4,7 +4,7 @@
 [«Салиентность»](https://github.com/xeniaengelbrekt/saliency-tool)). Работают целиком в браузере, без сервера.
 
 ```
-index.html          выбор приложения
+index.html          пустая страница (приложения не связаны ссылками; старые ссылки с #… ведут в emotional/)
 emotional/          приложение «Эмоциональные стимулы» (изображения 2×2, слова)
 cognitive/          приложение «Когнитивные стимулы» (вращение, филворд, различия, траектории)
 shared/css/         общая тема оформления
@@ -26,7 +26,7 @@ tests/ tools/ docs/ data/
 
 ## Запуск
 
-ES-модули требуют HTTP-сервер: `npm start` (или `python3 -m http.server 8765`) → http://localhost:8765/ (выбор приложения), http://localhost:8765/emotional/, http://localhost:8765/cognitive/.
+ES-модули требуют HTTP-сервер: `npm start` (или `python3 -m http.server 8765`) → http://localhost:8765/emotional/ и http://localhost:8765/cognitive/ (приложения независимы, ссылок между ними нет).
 Подходит и GitHub Pages. Тесты логики: `npm test`.
 
 ## Изображения
