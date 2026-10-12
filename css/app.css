@@ -285,3 +285,7 @@ textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3p
 .method-tile-dev { border-style: dashed; color: var(--text-dim); }
 .method-tile-dev .dev-badge { margin-left: 0; }
 @media (max-width: 700px) { .method-tiles { grid-template-columns: 1fr; } }
+
+/* Выбор формата файлов в блоке «В архив добавить» */
+.archive-options .check-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; font-family: var(--font-sans); font-size: 13.5px; color: var(--text-dim); }
+.archive-options .check-inline .select-wrap { min-width: min(100%, 420px); }

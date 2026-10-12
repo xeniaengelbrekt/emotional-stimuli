@@ -27,8 +27,8 @@ export function downloadText(text, filename, mime = 'text/csv') {
   downloadBlob(new Blob(['﻿', text], { type: `${mime};charset=utf-8` }), filename);
 }
 
-export const canvasToBlob = (canvas, type = 'image/png') =>
-  new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), type));
+export const canvasToBlob = (canvas, type = 'image/png', quality) =>
+  new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), type, quality));
 
 export const readText = (file) => new Promise((res, rej) => {
   const fr = new FileReader();

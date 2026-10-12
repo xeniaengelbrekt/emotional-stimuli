@@ -543,7 +543,7 @@ function showResults(res, stimuli, opts, L, salOn, method, tiles, byId) {
   }
 
   mountResults($('#img-results'), {
-    prefix: 'img', step: 3, width: W, height: H, stimuli, title: 'Эмоционально окрашенные изображения',
+    prefix: 'img', photoStimuli: true, step: 3, width: W, height: H, stimuli, title: 'Эмоционально окрашенные изображения',
     filters: [['control', 'Контрольные'], ['experimental', 'Экспериментальные']],
     requested: res.requested, built: stimuli.length, warnings,
     resultNote: `Контрольных ${ctrl}, экспериментальных ${exp}. Использовано изображений: ${usedIds.length}${repeated ? `, из них повторяются: ${repeated}` : ', повторов нет'}.`,
@@ -592,6 +592,7 @@ function methodsDoc(c) {
     H2('2. Параметры стимулов'),
     paramTable([
       ['Размер стимула', `${L.width} × ${L.height} пикс.`],
+      ['Формат файлов стимулов', ({ png: 'PNG (без потерь)', jpg98: 'JPEG, качество 98 (стандартное цветовое прореживание 4:2:0)' })[$('#img-fmt')?.value] || 'JPEG, качество 95 (стандартное цветовое прореживание 4:2:0)', 'Изображения сжаты для уменьшения размера файлов; на тестовом наборе PSNR ≈ 43 дБ относительно PNG, различия визуально незаметны'],
       ['Цвет фона', M.colorText(L.background)],
       ['Размер рамки каждой картинки', `${tiles.TL.w} × ${tiles.TL.h} пикс.`, 'Рамки четырёх картинок одинаковы'],
       ['Формат рамки (ширина : высота)', `${L.ratio.toFixed(3)}`, 'Если формат изображения отличается, края обрезаются по центру'],

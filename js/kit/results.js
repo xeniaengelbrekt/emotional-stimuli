@@ -50,6 +50,12 @@ export function mountResults(box, ctx) {
       <span class="archive-title">В архив добавить:</span>
       ${ctx.methods ? `<label class="check"><input type="checkbox" id="${prefix}-opt-methods" checked><span>описание стимулов для раздела «Методы» (Word, <code>methods_description.docx</code>)</span></label>` : ''}
       ${ctx.answerKey ? `<label class="check"><input type="checkbox" id="${prefix}-opt-key" checked><span>правильные ответы (<code>answer_key.csv</code>)</span></label>` : ''}
+      ${ctx.photoStimuli ? `<label class="check-inline">Формат стимулов:
+        <span class="select-wrap select-inline"><select id="${prefix}-fmt">
+          <option value="jpg95" selected>JPEG, качество 95 — примерно в 5 раз легче, без видимых потерь (рекомендуется)</option>
+          <option value="jpg98">JPEG, качество 98 — ещё ближе к оригиналу, примерно в 3 раза легче</option>
+          <option value="png">PNG — без потерь, но тяжёлые файлы</option>
+        </select></span></label>` : ''}
       <span class="archive-note">Таблицы со стимулами, зонами интереса, салиентностью, яркостью, настройки и README добавляются всегда.</span>
     </div>
     <div class="busy-bar tool-gap" id="${prefix}-zip-busy" hidden><span class="busy-spinner"></span><span id="${prefix}-zip-text"></span></div>
@@ -127,22 +133,26 @@ async function downloadArchive(ctx) {
     const canvas = document.createElement('canvas');
     const total = ctx.stimuli.length + (ctx.pngs?.length || 0);
     let i = 0;
-    const png = async (draw) => {
-      $(`#${prefix}-zip-text`).textContent = `Отрисовка PNG: ${++i} из ${total}`;
+    const fmt = ctx.photoStimuli ? ($(`#${prefix}-fmt`)?.value || 'jpg95') : 'png';
+    const stimExt = fmt === 'png' ? 'png' : 'jpg';
+    const stimQuality = fmt === 'jpg98' ? 0.98 : 0.95;
+    const render = async (draw, asStimulus) => {
+      $(`#${prefix}-zip-text`).textContent = `Отрисовка изображений: ${++i} из ${total}`;
       await tick();
       draw(canvas, 1);
-      const blob = await canvasToBlob(canvas);
+      const blob = asStimulus && stimExt === 'jpg' ? await canvasToBlob(canvas, 'image/jpeg', stimQuality) : await canvasToBlob(canvas);
       return new Uint8Array(await blob.arrayBuffer());
     };
+    const png = (draw) => render(draw, false);
     const addMethods = !!ctx.methods && $(`#${prefix}-opt-methods`)?.checked;
     const addKey = !!ctx.answerKey && $(`#${prefix}-opt-key`)?.checked;
     const files = [];            // [путь, описание] для README
     for (const p of ctx.pngs || []) { entries.push({ name: p.path, data: await png(p.draw) }); files.push([p.path, p.desc || 'Экран для участника (PNG того же размера, что стимулы)']); }
-    for (const st of ctx.stimuli) entries.push({ name: `stimuli/${st.name}.png`, data: await png(st.draw) });
-    files.push([`stimuli/*.png`, `Стимулы (${ctx.stimuli.length} шт.). Имя файла составлено из характеристик стимула и уникально`]);
+    for (const st of ctx.stimuli) entries.push({ name: `stimuli/${st.name}.${stimExt}`, data: await render(st.draw, true) });
+    files.push([`stimuli/*.${stimExt}`, `Стимулы (${ctx.stimuli.length} шт., ${stimExt === 'png' ? 'PNG без потерь' : `JPEG, качество ${Math.round(stimQuality * 100)}, стандартное цветовое прореживание 4:2:0`}). Имя файла составлено из характеристик стимула и уникально`]);
     if (addKey) { entries.push({ name: 'answer_key.csv', data: enc.encode('\ufeff' + toCSV(ctx.answerKey)) }); files.push(['answer_key.csv', 'Правильные ответы по каждому стимулу']); }
     for (const m of ctx.manifests) { entries.push({ name: m.file, data: enc.encode('\ufeff' + toCSV(m.rows, m.columns)) }); files.push([m.file, m.desc || 'Таблица']); }
-    entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({ generated: new Date().toISOString(), ...ctx.settings }, null, 2)) });
+    entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({ generated: new Date().toISOString(), ...ctx.settings, ...(ctx.photoStimuli ? { stimulusFormat: fmt } : {}) }, null, 2)) });
     files.push(['settings.json', 'Все параметры генерации и номер случайного набора: по ним набор воспроизводится точно']);
     if (addMethods) { entries.push({ name: 'methods_description.docx', data: buildDocx(ctx.methods()) }); files.push(['methods_description.docx', 'Описание стимулов и процедуры их создания для раздела «Методы» (Word)']); }
     entries.unshift({ name: 'README.txt', data: enc.encode('\ufeff' + readmeText(ctx, files)) });
@@ -167,7 +177,7 @@ export function readmeText(ctx, files) {
     ...files.map(([f, d]) => `  ${f}\n      ${d}`),
     '',
     'КАК СВЯЗАНЫ ТАБЛИЦЫ',
-    '  Во всех таблицах стимул обозначен столбцом «stimulus» — это имя PNG-файла без расширения.',
+    '  Во всех таблицах стимул обозначен столбцом «stimulus» — это имя файла стимула без расширения.',
     '  Координаты (x, y, w, h) — в пикселях стимула: x, y — левый верхний угол области, w — ширина, h — высота.',
     '  Таблицы в CSV: разделитель «;», десятичная запятая допустима, кодировка UTF-8; открываются в Excel двойным щелчком.',
     '',
