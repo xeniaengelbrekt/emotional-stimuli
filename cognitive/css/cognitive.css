@@ -1,0 +1,23 @@
+/* Дополнения к теме «Салиентности» для когнитивных стимулов */
+
+.params-card .check-row { gap: 10px 22px; }
+.subtle-note { font-family: var(--font-sans); font-size: 12px; color: var(--text-mute); }
+
+/* таблица настройки каждого стимула (траектории) */
+.trail-table-wrap { max-height: 560px; overflow: auto; }
+.trail-table th, .trail-table td { padding: 6px 8px; vertical-align: middle; white-space: nowrap; }
+.trail-table input[type="number"], .trail-table input[type="text"] { width: 74px; padding: 6px 8px; font-size: 12px; }
+.trail-table input[type="text"].t-letter { width: 56px; }
+.trail-table select { padding: 6px 26px 6px 8px; font-size: 12px; min-width: 120px; }
+.trail-table .apply-row td { background: rgba(74, 222, 128, 0.05); }
+.trail-table .apply-row .btn-small { margin-top: 4px; }
+.row-actions { display: flex; gap: 6px; }
+.icon-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: var(--radius); width: 28px; height: 28px; cursor: pointer; font-family: var(--font-mono);
+}
+.icon-btn:hover { border-color: var(--green); color: var(--green); }
+.icon-btn.danger:hover { border-color: var(--err); color: var(--err); }
+
+.series-note { font-family: var(--font-sans); font-size: 12px; color: var(--text-mute); }
+.help-nav-wide .modal-tab { white-space: nowrap; }
