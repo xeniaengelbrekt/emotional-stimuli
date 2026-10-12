@@ -52,3 +52,24 @@ export function scaleStats(items) {
   }
   return out;
 }
+
+/** Эмоция по тексту («угроза», «грустная», «sad», «positive» …) — когда оценок нет и категория задана прямо. */
+const EMOTION_WORDS = {
+  neutral:  ['neutral', 'neutrality', 'нейтральность', 'нейтральный', 'нейтральная', 'нейтральное', 'нейтр', 'neu'],
+  positive: ['positive', 'positivity', 'pos', 'позитивность', 'позитивный', 'позитивная', 'позитивное', 'позитив', 'положительная', 'положительный'],
+  sad:      ['sad', 'sadness', 'грусть', 'грустный', 'грустная', 'грустное', 'печаль', 'печальная'],
+  threat:   ['threat', 'threatening', 'danger', 'угроза', 'угрожающий', 'угрожающая', 'опасность', 'опасная', 'thr'],
+};
+const normWord = (s) => String(s ?? '').toLowerCase().replace(/[^a-zа-яё]/g, '');
+export function parseEmotion(text) {
+  const t = normWord(text);
+  if (!t) return null;
+  for (const k of EMOTION_KEYS) if (EMOTION_WORDS[k].some((a) => normWord(a) === t)) return k;
+  return null;
+}
+/** Эмоция по слову в имени файла: `animals_sad_01.jpg`, `угроза-люди 3.png`. */
+export function emotionFromFilename(filename) {
+  const base = filename.replace(/\.[^.]+$/, '');
+  for (const tok of base.split(/[_\-\s.0-9]+/).filter(Boolean)) { const e = parseEmotion(tok); if (e) return e; }
+  return null;
+}

@@ -4,7 +4,7 @@
 
 import { $, $$, esc, tick, bindDropzone, downloadText, readText, fmt } from '../../common/ui.js';
 import { parseCSV, parseNum, findColumn, toCSV } from '../../common/csv.js';
-import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../common/emotions.js';
+import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, parseEmotion, emotionFromFilename, classifyEmotion, scaleStats } from '../../common/emotions.js';
 import { loadImageFiles } from '../../core/loader.js';
 import { computeSaliency } from '../../core/algorithms/index.js';
 import { computeMetrics } from '../../core/metrics.js';
@@ -34,6 +34,7 @@ let editor = null;
 
 const REALISM_ALIASES = ['realism', 'realistic', 'реалистичность', 'реалистичный', 'реализм'];
 const GROUP_COL_ALIASES = ['group', 'category', 'группа', 'категория', 'тип', 'type'];
+const EMOTION_COL_ALIASES = ['emotion', 'emotioncategory', 'эмоция', 'эмоциональнаякатегория', 'категорияэмоции', 'эмоциональныйтип'];
 const FILE_COL_ALIASES = ['file', 'filename', 'image', 'img', 'name', 'файл', 'имяфайла', 'изображение', 'имя'];
 
 const keyOf = (name) => name.replace(/\.[^.]+$/, '').trim().toLowerCase();
@@ -97,6 +98,8 @@ function readOptions() {
 
 /* ---------------- категории ---------------- */
 
+const hasRatings = (it) => EMOTION_KEYS.every((k) => it.ratings[k] != null && Number.isFinite(it.ratings[k]));
+
 function recomputeCategories() {
   const opts = {
     margin: Math.max(0, num('#img-margin-cat', 0)),
@@ -104,7 +107,8 @@ function recomputeCategories() {
   };
   const minReal = parseNum($('#img-minreal').value);
   for (const it of state.items) {
-    it.category = classifyEmotion(it.ratings, opts);
+    // оценки есть — категория по максимальной шкале; оценок нет — категория, заданная прямо (имя файла, столбец CSV, выбор в таблице)
+    it.category = hasRatings(it) ? classifyEmotion(it.ratings, opts) : (it.manualCategory || null);
     it.excluded = null;
     if (it.category && minReal != null && it.ratings.realism != null && it.ratings.realism < minReal) {
       it.excluded = 'низкая реалистичность';
@@ -155,6 +159,7 @@ async function addFiles(files) {
       id: `i${state.nextId++}`, name: r.name, thumb: r.thumb, img: r.origImage, w: r.origW, h: r.origH,
       method, lum,
       group: fromCsv?.group ?? groupFromFilename(r.name),
+      manualCategory: fromCsv?.emotion ?? emotionFromFilename(r.name),
       ratings: { ...blankRatings(), ...(fromCsv?.ratings || {}) },
       metrics: Object.fromEntries(SAL_KEYS.map((k) => [k, m[k]])),
       category: null, excluded: null,
@@ -219,9 +224,14 @@ async function loadRatingsFile(file) {
   const scaleCols = {};
   for (const k of EMOTION_KEYS) scaleCols[k] = findColumn(columns, EMOTION_ALIASES[k]);
   const realCol = findColumn(columns, REALISM_ALIASES);
+  const emoCol = findColumn(columns, EMOTION_COL_ALIASES);
+  // в столбце «категория» может стоять и группа, и эмоция — смотрим на значения
+  const groupColIsEmotion = groupCol && !emoCol && rows.some((r) => parseEmotion(r[groupCol]) && !parseGroup(r[groupCol]));
+  const emotionColumn = emoCol || (groupColIsEmotion ? groupCol : null);
   const missing = EMOTION_KEYS.filter((k) => !scaleCols[k]).map((k) => EMOTION_BY_KEY[k].ru.toLowerCase());
-  if (missing.length) { toastError(`В CSV нет колонок: ${missing.join(', ')}`, 7000); return; }
-  if (!realCol) toastInfo('Колонка «реалистичность» не найдена — порог реалистичности применяться не будет', 6000);
+  if (missing.length && !emotionColumn) { toastError(`В CSV нет колонок: ${missing.join(', ')}`, 7000); return; }
+  if (emotionColumn && missing.length) toastInfo('Оценок по шкалам в таблице нет — эмоциональная категория берётся из столбца «эмоция». Сравнение шкал, пороги и поправки на силу эмоции работать не будут.', 8000);
+  else if (!realCol) toastInfo('Колонка «реалистичность» не найдена — порог реалистичности применяться не будет', 6000);
 
   let matched = 0;
   const seen = new Set();
@@ -230,15 +240,17 @@ async function loadRatingsFile(file) {
     if (!key) continue;
     seen.add(key);
     const ratings = {
-      ...Object.fromEntries(EMOTION_KEYS.map((k) => [k, parseNum(r[scaleCols[k]])])),
+      ...Object.fromEntries(EMOTION_KEYS.map((k) => [k, scaleCols[k] ? parseNum(r[scaleCols[k]]) : null])),
       realism: realCol ? parseNum(r[realCol]) : null,
     };
-    const group = groupCol ? parseGroup(r[groupCol]) : null;
-    state.ratings.set(key, { ratings, group });
+    const group = groupCol && groupCol !== emotionColumn ? parseGroup(r[groupCol]) : null;
+    const emotion = emotionColumn ? parseEmotion(r[emotionColumn]) : null;
+    state.ratings.set(key, { ratings, group, emotion });
     const it = state.items.find((x) => keyOf(x.name) === key);
     if (it) {
       it.ratings = ratings;
       if (group) it.group = group;
+      if (emotion) it.manualCategory = emotion;
       matched++;
     }
   }
@@ -271,7 +283,7 @@ function renderTable() {
   recomputeCategories();
   $('#img-table-block').hidden = !state.items.length;
   $('#img-clear').disabled = !state.items.length;
-  const head = `<thead><tr><th></th><th>Файл</th><th>Группа</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Реалистичность</th><th>Эмоция</th><th>Средняя салиентность</th></tr></thead>`;
+  const head = `<thead><tr><th></th><th>Файл</th><th>Группа</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>Реалистичность</th><th>Эмоция</th><th title="Нужна, если оценок нет: категория задаётся прямо. Если оценки есть — игнорируется">Эмоция вручную</th><th>Средняя салиентность</th></tr></thead>`;
   const body = state.items.map((it) => `
     <tr data-id="${it.id}">
       <td><img class="row-thumb" src="${it.thumb}" alt=""></td>
@@ -279,14 +291,15 @@ function renderTable() {
       <td><div class="select-wrap select-cell"><select data-f="group"><option value="">—</option>${GROUPS.map((g) => `<option value="${g.key}"${it.group === g.key ? ' selected' : ''}>${g.ru}</option>`).join('')}</select></div></td>
       ${[...EMOTION_KEYS, 'realism'].map((k) => `<td><input class="cell-num" type="number" step="0.01" data-r="${k}" value="${it.ratings[k] ?? ''}"></td>`).join('')}
       <td class="cat-cell">${catChip(it)}</td>
+      <td><div class="select-wrap select-cell"><select data-f="emotion"><option value="">—</option>${EMOTIONS.map((e) => `<option value="${e.key}"${it.manualCategory === e.key ? ' selected' : ''}>${e.ru}</option>`).join('')}</select></div></td>
       <td class="num">${fmt(it.metrics.mean, 4)}</td>
     </tr>`).join('');
   $('#img-table').innerHTML = head + `<tbody>${body}</tbody>`;
   const noGroup = state.items.filter((it) => !it.group).length;
-  const noRat = state.items.filter((it) => EMOTION_KEYS.some((k) => it.ratings[k] == null)).length;
+  const noRat = state.items.filter((it) => !hasRatings(it) && !it.manualCategory).length;
   $('#img-count').innerHTML = `Изображений: <strong class="hl">${state.items.length}</strong>` +
     (noGroup ? ` · без группы: <span class="warn-text">${noGroup}</span>` : '') +
-    (noRat ? ` · без оценок: <span class="warn-text">${noRat}</span>` : '');
+    (noRat ? ` · без оценок и эмоции: <span class="warn-text">${noRat}</span>` : '');
   renderFeasibility();
 }
 
@@ -295,6 +308,7 @@ function onTableEdit(e) {
   if (!tr) return;
   const it = state.items.find((x) => x.id === tr.dataset.id);
   if (e.target.dataset.f === 'group') it.group = e.target.value || null;
+  else if (e.target.dataset.f === 'emotion') it.manualCategory = e.target.value || null;
   else if (e.target.dataset.r) it.ratings[e.target.dataset.r] = parseNum(e.target.value);
   else return;
   invalidateResult();
@@ -564,10 +578,13 @@ function methodsDoc(c) {
       'Все четыре изображения одного стимула относятся к одной группе объектов (один человек, группа людей, животные, предметы). ' +
       'В контрольном стимуле все четыре изображения принадлежат одной эмоциональной категории; в экспериментальном — четырём разным категориям (нейтральная, позитивная, грусть, угроза). Правильных ответов в методике нет.'),
     H2('1. Исходный материал'),
-    P(`В подборе участвовали ${loaded.length} загруженных изображений; в готовый набор вошло ${usedItems.length}. Эмоциональная категория изображения определялась по средним оценкам массовой валидации: категорией считалась шкала с наибольшей средней оценкой (нейтральность, позитивность, грусть, угроза)` +
-      `${marginCat > 0 ? `; изображения, у которых главная шкала опережала вторую менее чем на ${marginCat} балла, не использовались` : '; при равенстве двух наибольших оценок категория не присваивалась, и изображение не использовалось'}` +
-      `${$('#img-zscale').checked ? '; шкалы сравнивались в стандартизованном виде (z-оценки по всем изображениям)' : ''}` +
-      `${minReal != null ? `; изображения с оценкой реалистичности ниже ${minReal} не использовались` : ''}. Группа объектов задана в таблице оценок или назначена вручную.`),
+    ...(loaded.some(hasRatings)
+      ? [P(`В подборе участвовали ${loaded.length} загруженных изображений; в готовый набор вошло ${usedItems.length}. Эмоциональная категория изображения определялась по средним оценкам массовой валидации: категорией считалась шкала с наибольшей средней оценкой (нейтральность, позитивность, грусть, угроза)` +
+          `${marginCat > 0 ? `; изображения, у которых главная шкала опережала вторую менее чем на ${marginCat} балла, не использовались` : '; при равенстве двух наибольших оценок категория не присваивалась, и изображение не использовалось'}` +
+          `${$('#img-zscale').checked ? '; шкалы сравнивались в стандартизованном виде (z-оценки по всем изображениям)' : ''}` +
+          `${minReal != null ? `; изображения с оценкой реалистичности ниже ${minReal} не использовались` : ''}. Группа объектов задана в таблице оценок или назначена вручную.` +
+          `${loaded.some((it) => !hasRatings(it) && it.manualCategory) ? ' Для изображений без оценок эмоциональная категория задана исследователем напрямую.' : ''}`)]
+      : [P(`В подборе участвовали ${loaded.length} загруженных изображений; в готовый набор вошло ${usedItems.length}. Оценки массовой валидации не использовались: эмоциональная категория каждого изображения (нейтральная, позитивная, грусть, угроза) и группа объектов заданы исследователем заранее (по имени файла, таблице или вручную). Поэтому сила выраженности эмоции и реалистичность изображений при подборе не учитывались, а сопоставимость категорий контролировалась только по низкоуровневым характеристикам — салиентности и яркости.`)]),
     P('Число загруженных изображений с назначенными группой и категорией:'),
     TABLE(['Группа', ...catHeaders], loadedCounts),
     P('Число изображений, вошедших в набор:'),
@@ -648,7 +665,7 @@ function panelHtml() {
       <label class="btn" for="img-ratings-file">↑ Загрузить таблицу оценок (CSV)</label>
       <input type="file" id="img-ratings-file" accept=".csv,.tsv,.txt" hidden>
       <button class="btn btn-ghost" id="img-template" type="button">↓ Скачать образец таблицы</button>
-      <span class="toolbar-info" id="img-ratings-info">Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность</span>
+      <span class="toolbar-info" id="img-ratings-info">Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность — либо вместо оценок один столбец «эмоция»</span>
       <span class="toolbar-spacer"></span>
       <button class="btn btn-ghost" id="img-clear" type="button" disabled>⊘ Убрать все изображения</button>
     </div>
@@ -723,7 +740,7 @@ export function initImagesGenerator() {
   $('#img-template').addEventListener('click', downloadTemplate);
   $('#img-clear').addEventListener('click', () => {
     state.items = []; state.ratings.clear();
-    $('#img-ratings-info').textContent = 'Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность';
+    $('#img-ratings-info').textContent = 'Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность — либо вместо оценок один столбец «эмоция»';
     invalidateResult(); renderTable();
   });
   $('#img-bulk-apply').addEventListener('click', () => {
