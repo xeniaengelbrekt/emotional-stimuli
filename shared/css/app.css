@@ -253,5 +253,3 @@ textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3p
 .instr-preview { margin-top: 18px; max-width: 640px; }
 .instr-preview canvas { width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: var(--radius); }
 .btn-small { align-self: flex-start; padding: 6px 12px; font-size: 11px; }
-.foot-link { margin-left: auto; color: var(--text-dim); text-decoration: none; }
-.foot-link:hover { color: var(--green-bright); }
