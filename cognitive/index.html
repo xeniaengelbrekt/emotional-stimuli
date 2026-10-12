@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Когнитивные стимулы — генератор и анализ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23050a08%27/%3E%3Crect x=%277%27 y=%277%27 width=%279%27 height=%279%27 fill=%27%234ade80%27/%3E%3Crect x=%2716%27 y=%2716%27 width=%279%27 height=%279%27 fill=%27none%27 stroke=%27%234ade80%27 stroke-width=%272.5%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/app.css">
+  <link rel="stylesheet" href="css/cognitive.css">
+</head>
+<body class="on-home">
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <header class="page-header">
+    <a class="logo" href="#home" title="На главную">
+      <span class="logo-mark">▦</span>
+      <span class="logo-text">Когнитивные стимулы</span>
+      <span class="logo-en">(Cognitive stimuli)</span>
+    </a>
+    <div class="header-actions">
+      <a class="help-btn" href="../index.html" title="Генератор эмоциональных стимулов">
+        <span class="help-mark">◎</span>
+        <span>Эмоциональные стимулы</span>
+      </a>
+      <a class="help-btn" id="homeBtn" href="#home" hidden>
+        <span class="help-mark">←</span>
+        <span>Главная</span>
+      </a>
+      <button class="help-btn" id="helpBtn" type="button" title="Открыть руководство">
+        <span class="help-mark">?</span>
+        <span>Помощь</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="mode-panels">
+
+      <!-- ==================== ГЛАВНАЯ ==================== -->
+      <section class="mode-panel active" id="mode-home" role="tabpanel">
+        <div class="home-tip">
+          <div class="home-tip-mark">▦</div>
+          <div class="home-tip-body">
+            <div class="home-tip-title">Стимулы для оценки когнитивных функций</div>
+            <p>
+              Четыре методики: <strong class="emphasis">плоскостное ментальное вращение</strong>,
+              <strong class="emphasis">вербальное мышление</strong> (филворд),
+              <strong class="emphasis">определение различий</strong> и
+              <strong class="emphasis">траектории</strong> (прослеживание чисел взглядом по мотивам теста Кинга — Дэвика).
+              Для каждой — генератор PNG-стимулов; по умолчанию размер 1920×1080, его можно изменить.
+            </p>
+            <p>
+              Вместе со стимулами в ZIP-архив попадают <strong class="emphasis">инструкции для участника в виде PNG</strong>
+              (что делать и какие клавиши нажимать), таблицы с описанием стимулов и зонами интереса и файл настроек.
+              Каждый стимул получает уникальное английское имя, собранное из его характеристик.
+            </p>
+            <p class="home-tip-note">Все вычисления выполняются локально в браузере. Загруженные списки слов никуда не передаются.</p>
+          </div>
+        </div>
+
+        <header class="home-section">
+          <h3 class="home-section-title">Создание стимулов</h3>
+          <p class="home-section-sub">Выберите методику</p>
+        </header>
+        <div class="task-row task-row-2">
+          <a class="task-card task-card-v" href="#rot">
+            <header class="tc-head"><span class="tc-num">01</span><span class="tc-icon">↻</span></header>
+            <h4 class="tc-title">Плоскостное ментальное вращение</h4>
+            <p class="tc-desc">Фигура-задание и четыре варианта ответа: какая получится после поворота на 90° по часовой, против часовой, на 180° или после зеркального отражения. Ч/б и цветные варианты, оценка салиентности.</p>
+            <p class="tc-when">Ответ — цифра 1–4 на клавиатуре</p>
+            <span class="tc-arrow">→</span>
+          </a>
+          <a class="task-card task-card-v" href="#verbal">
+            <header class="tc-head"><span class="tc-num">02</span><span class="tc-icon">Аб</span></header>
+            <h4 class="tc-title">Вербальное мышление (филворд)</h4>
+            <p class="tc-desc">Сетка букв и цифр со спрятанными целевыми словами из вашего CSV. Размер сетки, цветность, число слов, направление, подбор слов по длине, частотности и эмоциональной категории.</p>
+            <p class="tc-when">Ответ — щелчок мыши по слову</p>
+            <span class="tc-arrow">→</span>
+          </a>
+          <a class="task-card task-card-v" href="#diff">
+            <header class="tc-head"><span class="tc-num">03</span><span class="tc-icon">≠</span></header>
+            <h4 class="tc-title">Определение различий</h4>
+            <p class="tc-desc">Серия экранов: сначала N объектов нужно запомнить, на каждом следующем экране один объект меняется — на него нужно нажать. Буквы или числа, сетка или хаотичное расположение.</p>
+            <p class="tc-when">Ответ — щелчок мыши по изменившемуся объекту</p>
+            <span class="tc-arrow">→</span>
+          </a>
+          <a class="task-card task-card-v" href="#trails">
+            <header class="tc-head"><span class="tc-num">04</span><span class="tc-icon">⋯</span></header>
+            <h4 class="tc-title">Траектории</h4>
+            <p class="tc-desc">Числа в несколько строк; нужно проследить их взглядом по возрастанию или убыванию, не называя и не нажимая, и оценить себя от 1 до 5. Дистракторы, прямое и зигзагообразное расположение, настройка каждого стимула.</p>
+            <p class="tc-when">Оценка — цифра 1–5 на клавиатуре</p>
+            <span class="tc-arrow">→</span>
+          </a>
+        </div>
+
+        <header class="home-section home-section-after">
+          <h3 class="home-section-title">Анализ</h3>
+          <p class="home-section-sub">Общий модуль для всех четырёх методик</p>
+        </header>
+        <div class="task-row task-row-2">
+          <a class="task-card task-card-v task-card-dev" href="#analysis">
+            <header class="tc-head"><span class="tc-num">05</span><span class="tc-icon">↔</span></header>
+            <h4 class="tc-title">Анализ движений глаз и ответов <span class="dev-badge">в разработке</span></h4>
+            <p class="tc-desc">Загрузка фиксаций, саккад и ответов испытуемых; сравнение групп «норма / не норма» и связь с эмоциональными характеристиками по опросникам; модель с учётом сложности стимулов на нормативной выборке.</p>
+            <p class="tc-when">Модуль в разработке</p>
+            <span class="tc-arrow">→</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="mode-panel" id="mode-rot" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-verbal" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-diff" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-trails" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-analysis" role="tabpanel"></section>
+    </div>
+
+    <footer class="page-footer">
+      <span class="foot-mark">▦</span>
+      <span>Когнитивные стимулы · оформление и алгоритмы салиентности — из модуля «Салиентность» · всё считается в браузере</span>
+    </footer>
+  </main>
+
+  <!-- ==================== ПОМОЩЬ ==================== -->
+  <div class="modal" id="helpModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <header class="modal-head">
+        <h2 class="modal-title" id="helpTitle">Руководство</h2>
+        <button class="modal-close" type="button" data-close aria-label="Закрыть">×</button>
+      </header>
+      <nav class="modal-nav" id="helpNav"></nav>
+      <div class="modal-body" id="helpBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

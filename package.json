@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "test": "node tests/test-images.mjs && node tests/test-words.mjs && node tests/test-common.mjs",
+    "test": "node tests/test-images.mjs && node tests/test-words.mjs && node tests/test-common.mjs && node tests/test-cognitive.mjs",
     "start": "python3 -m http.server 8765"
   }
 }
