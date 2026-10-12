@@ -2,7 +2,7 @@
    images/ui.js — интерфейс «Изображения · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt } from '../common/ui.js';
+import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../common/ui.js';
 import { parseCSV, parseNum, findColumn, toCSV } from '../common/csv.js';
 import { buildZip } from '../common/zip.js';
 import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../common/emotions.js';
@@ -119,10 +119,11 @@ async function addFiles(files) {
     await tick();
     const sal = computeSaliency(r.imageData, method);
     const m = computeMetrics(sal, sal.width, sal.height);
+    const lum = workingLuminance(r.imageData);
     const fromCsv = state.ratings.get(key);
     state.items.push({
       id: `i${state.nextId++}`, name: r.name, thumb: r.thumb, img: r.origImage, w: r.origW, h: r.origH,
-      method,
+      method, lum,
       group: fromCsv?.group ?? groupFromFilename(r.name),
       ratings: { ...blankRatings(), ...(fromCsv?.ratings || {}) },
       metrics: Object.fromEntries(SAL_KEYS.map((k) => [k, m[k]])),
@@ -134,6 +135,14 @@ async function addFiles(files) {
   invalidateResult();
   renderTable();
   toastSuccess(`Загружено изображений: ${done}`);
+}
+
+/** Средняя яркость рабочей копии изображения (0–255). */
+function workingLuminance(imageData) {
+  const d = imageData.data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return Math.round((s / (d.length / 4)) * 10) / 10;
 }
 
 const blankRatings = () => ({ neutral: null, positive: null, sad: null, threat: null, realism: null });
@@ -455,11 +464,14 @@ function buildManifests() {
   const tiles = tileRects(L);
   const stimuliRows = [];
   const tilesRows = [];
+  const scratch = document.createElement('canvas');
   for (const st of r.stimuli) {
+    drawImageStimulus(scratch, st, (id) => state.items.find((x) => x.id === id).img, L);
     const row = {
       stimulus: st.name, type: st.type, group: st.group,
       emotion_category: st.type === 'control' ? st.category : 'mixed',
       width: L.width, height: L.height,
+      stimulus_luminance: meanLuminance(scratch),
     };
     for (const pos of POSITIONS) {
       const c = st.layout.find((x) => x.pos === pos);
@@ -482,6 +494,7 @@ function buildManifests() {
         rating_neutral: it.ratings.neutral, rating_positive: it.ratings.positive,
         rating_sad: it.ratings.sad, rating_threat: it.ratings.threat, rating_realism: it.ratings.realism,
         ...Object.fromEntries(SAL_KEYS.map((k) => [`salience_${k}`, it.metrics[k]])),
+        luminance_mean: it.lum ?? '',
         aoi_x: f.dx, aoi_y: f.dy, aoi_w: Math.round(f.dw), aoi_h: Math.round(f.dh),
         tile_x: tiles[pos].x, tile_y: tiles[pos].y, tile_w: tiles[pos].w, tile_h: tiles[pos].h,
       });

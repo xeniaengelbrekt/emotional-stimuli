@@ -2,7 +2,7 @@
    words/ui.js — интерфейс «Слова · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt } from '../common/ui.js';
+import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../common/ui.js';
 import { parseCSV, parseNum, findColumn, toCSV } from '../common/csv.js';
 import { buildZip } from '../common/zip.js';
 import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../common/emotions.js';
@@ -341,7 +341,7 @@ function view(st) {
 
 /* ---------------- экспорт ---------------- */
 
-function manifestsFrom(boxesByStim) {
+function manifestsFrom(boxesByStim, lumByStim = new Map()) {
   const r = state.result;
   const stimuliRows = [];
   const wordsRows = [];
@@ -354,6 +354,7 @@ function manifestsFrom(boxesByStim) {
       target_cell: st.targetCell + 1, target_row: Math.floor(st.targetCell / st.grid.cols) + 1, target_col: (st.targetCell % st.grid.cols) + 1,
       grid_rows: st.grid.rows, grid_cols: st.grid.cols, font_px: state.fontSizes[st.N],
       width: r.layout.width, height: r.layout.height,
+      stimulus_luminance: lumByStim.get(st.name) ?? '',
       mean_length: (st.cells.reduce((a, c) => a + c.item.len, 0) / st.cells.length).toFixed(2),
       mean_log_frequency: st.cells.every((c) => c.item.freq != null)
         ? (st.cells.reduce((a, c) => a + logFreq(c.item.freq), 0) / st.cells.length).toFixed(3) : '',
@@ -375,8 +376,12 @@ function buildManifests() {
   const r = state.result;
   const c = document.createElement('canvas');
   const map = new Map();
-  for (const st of r.stimuli) map.set(st.name, drawWordStimulus(c, st, r.layout, state.fontSizes[st.N]));
-  return manifestsFrom(map);
+  const lum = new Map();
+  for (const st of r.stimuli) {
+    map.set(st.name, drawWordStimulus(c, st, r.layout, state.fontSizes[st.N]));
+    lum.set(st.name, meanLuminance(c));
+  }
+  return manifestsFrom(map, lum);
 }
 
 async function downloadArchive() {
@@ -389,11 +394,13 @@ async function downloadArchive() {
     const entries = [];
     const canvas = document.createElement('canvas');
     const boxes = new Map();
+    const lumByStim = new Map();
     let i = 0;
     for (const st of r.stimuli) {
       $('#word-zip-text').textContent = `Отрисовка PNG: ${++i} из ${r.stimuli.length}`;
       await tick();
       boxes.set(st.name, drawWordStimulus(canvas, st, r.layout, state.fontSizes[st.N]));
+      lumByStim.set(st.name, meanLuminance(canvas));
       const blob = await canvasToBlob(canvas);
       entries.push({ name: `stimuli/${st.name}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
     }
@@ -403,7 +410,7 @@ async function downloadArchive() {
       const blob = await canvasToBlob(canvas);
       entries.unshift({ name: 'instruction.png', data: new Uint8Array(await blob.arrayBuffer()) });
     }
-    const { stimuliRows, wordsRows } = manifestsFrom(boxes);
+    const { stimuliRows, wordsRows } = manifestsFrom(boxes, lumByStim);
     entries.push({ name: 'stimuli.csv', data: enc.encode('﻿' + toCSV(stimuliRows)) });
     entries.push({ name: 'stimuli_words.csv', data: enc.encode('﻿' + toCSV(wordsRows)) });
     entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({

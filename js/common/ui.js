@@ -73,4 +73,20 @@ export function openViewer({ title, canvasFactory, info }) {
   return root;
 }
 
+/**
+ * Средняя яркость картинки (0–255, по формуле Rec. 601 из sRGB-значений).
+ * Нужна для анализа зрачка: зрачок реагирует на свет сильнее, чем на эмоции.
+ */
+export function meanLuminance(canvas) {
+  const w = 96, h = Math.max(1, Math.round(96 * canvas.height / canvas.width));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(canvas, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return Math.round((s / (d.length / 4)) * 10) / 10;
+}
+
 export const fmt = (v, d = 2) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d));
