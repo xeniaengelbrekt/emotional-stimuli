@@ -4,13 +4,14 @@
    Числа от 1 до N расставлены строками. Участник прослеживает их
    взглядом по возрастанию (1 → N) или по убыванию (N → 1), не называя
    вслух и не нажимая, а в конце оценивает по шкале от 1 до 5, как
-   хорошо справился (клавиша на клавиатуре).
+   хорошо справился (щелчок мыши по цифре).
 
    Что можно менять у каждого стимула:
      • сколько чисел и в скольких строках;
      • расположение: по прямой (ровные ряды) или по зигзагу
        (соседние числа ряда чередуются выше и ниже);
-     • расстояние между числами: фиксированное или разное;
+     • расстояние между числами в строке: фиксированное или разное;
+     • расстояние между строками (линиями): автоматически или заданное в пикселях;
      • направление (на расположение не влияет — меняется только инструкция);
      • дистракторы: число другого цвета, буква, квадрат или треугольник.
        Дистрактор ЗАМЕНЯЕТ число (не первое и не последнее), на него
@@ -56,7 +57,7 @@ export const DEFAULTS = {
 /** Параметры по умолчанию для одного стимула (строка таблицы). */
 export const blankRow = (o = {}) => ({
   n: 15, rows: 3, arrangement: 'straight', direction: 'ascending',
-  distractor: 'none', letter: 'А', dCount: 1, spacing: 'fixed', fontSize: 0, ...o,
+  distractor: 'none', letter: 'А', dCount: 1, spacing: 'fixed', fontSize: 0, rowStep: 0, ...o,
 });
 
 /** Все варианты по общим настройкам: по perVariant стимулов на каждое сочетание. */
@@ -70,7 +71,7 @@ export function buildRows(o = {}) {
         for (let k = 0; k < c.perVariant; k++) {
           rows.push(blankRow({
             n: c.n, rows: c.rows, arrangement, direction, spacing, distractor: kind,
-            letter: letter || 'А', dCount: kind === 'none' ? 0 : c.dCount,
+            letter: letter || 'А', dCount: kind === 'none' ? 0 : c.dCount, rowStep: c.rowStep || 0,
           }));
         }
       }
@@ -101,7 +102,10 @@ export function layoutTrail(spec, style, rng) {
   const n = spec.n; const rows = Math.max(1, Math.min(spec.rows, n));
   const cols = Math.ceil(n / rows);
   const mx = W * AREA.mx;
-  const areaTop = H * AREA.top; const rowH = (H * (AREA.bottom - AREA.top)) / rows;
+  const areaMid = H * (AREA.top + AREA.bottom) / 2;
+  const autoRowH = (H * (AREA.bottom - AREA.top)) / rows;
+  // расстояние между центрами строк: заданное (пикс.) или автоматически — по высоте рабочей области
+  const rowH = spec.rowStep > 0 ? spec.rowStep : autoRowH;
   const amp = (style.zigzag ?? 0.22) * rowH;
   const spread = Math.min(0.8, Math.max(0, style.spread ?? 0.4));
 
@@ -126,7 +130,7 @@ export function layoutTrail(spec, style, rng) {
     }
     for (let c = 0; c < count; c++) {
       const order = r * cols + c;                 // 0-based
-      const y0 = areaTop + (r + 0.5) * rowH;
+      const y0 = areaMid + (r - (rows - 1) / 2) * rowH;
       const y = spec.arrangement === 'zigzag' ? y0 + (c % 2 === 0 ? -amp : amp) : y0;
       const isD = dIdx.has(order);
       let kind = 'number';
@@ -137,7 +141,7 @@ export function layoutTrail(spec, style, rng) {
       items.push({ order, value: order + 1, kind, text, x: xs[c], y, row: r + 1, col: c + 1, isDistractor: isD });
     }
   }
-  return { items, cols, rows };
+  return { items, cols, rows, rowStep: rowH };
 }
 
 export function distractorLabel(spec) {

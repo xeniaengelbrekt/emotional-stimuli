@@ -1,37 +1,52 @@
 /* ============================================================
-   images/ui.js — интерфейс «Изображения · создание стимулов»
+   images/ui.js — «Эмоционально окрашенные изображения · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../../common/ui.js';
+import { $, $$, esc, tick, bindDropzone, downloadText, readText, fmt } from '../../common/ui.js';
 import { parseCSV, parseNum, findColumn, toCSV } from '../../common/csv.js';
-import { buildZip } from '../../common/zip.js';
 import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../common/emotions.js';
 import { loadImageFiles } from '../../core/loader.js';
 import { computeSaliency } from '../../core/algorithms/index.js';
 import { computeMetrics } from '../../core/metrics.js';
-import { formatP } from '../../core/stats.js';
+import { formatP, meanOf, sdOf, oneWayAnova as oneWay } from '../../core/stats.js';
 import { toastError, toastSuccess, toastInfo } from '../../core/toast.js';
+import { fld, readCheck } from '../../kit/fields.js';
+import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } from '../../kit/panel.js';
+import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../../kit/instr.js';
+import { mountResults, metricTable } from '../../kit/results.js';
+import { evaluateSalience, relativeAoiSalience, salienceBalance, METHOD_LABELS, SAL_NAMES } from '../../kit/salience.js';
+import { meanLuminance as stimLuminance } from '../../kit/luminance.js';
+import { BG, FG, NEXT_LINE, START_LINE } from '../../kit/defaults.js';
+import * as M from '../../kit/methods.js';
 import {
   GROUPS, GROUP_KEYS, GROUP_BY_KEY, POSITIONS, SAL_KEYS, SAL_LABELS,
   parseGroup, groupFromFilename, generateImageStimuli, checkFeasibility, balanceReport,
 } from './generator.js';
-import { tileRects, fitImage, drawImageStimulus } from './render.js';
-import { drawInstruction, IMAGES_INSTRUCTION } from '../../common/instruction.js';
+import { tileRects, drawImageStimulus, cropShare } from './render.js';
 
 const state = {
   items: [],
   ratings: new Map(),      // ключ имени файла → { ratings, group }
-  result: null,            // последний результат генерации
-  layout: null,
   nextId: 1,
   busy: false,
 };
+let editor = null;
 
 const REALISM_ALIASES = ['realism', 'realistic', 'реалистичность', 'реалистичный', 'реализм'];
 const GROUP_COL_ALIASES = ['group', 'category', 'группа', 'категория', 'тип', 'type'];
 const FILE_COL_ALIASES = ['file', 'filename', 'image', 'img', 'name', 'файл', 'имяфайла', 'изображение', 'имя'];
 
 const keyOf = (name) => name.replace(/\.[^.]+$/, '').trim().toLowerCase();
+
+const INSTRUCTION = [
+  'На экране будут появляться по четыре изображения.',
+  'Рассматривайте их так, как вам удобно.',
+  '',
+  'Когда рассмотрите, щёлкните левой кнопкой мыши по тому изображению, которое привлекло ваше внимание больше всего.',
+  '',
+  NEXT_LINE,
+  START_LINE,
+].join('\n');
 
 /* ---------------- чтение формы ---------------- */
 
@@ -40,14 +55,29 @@ const num = (id, dflt) => {
   return v == null ? dflt : v;
 };
 
+const AUTO_RATIOS = [1, 5 / 4, 4 / 3, 3 / 2, 16 / 9];
+const RATIO_OPTIONS = [['auto', 'Автоматически — по самым частым изображениям'], ['1.333333', '4 : 3'], ['1.5', '3 : 2'], ['1.777778', '16 : 9'], ['1.25', '5 : 4'], ['1', '1 : 1 (квадрат)']];
+
+/** Формат рамки: заданный или самый частый среди загруженных изображений (ближайший из стандартных). */
+function resolveRatio() {
+  const v = $('#img-ratio').value;
+  if (v !== 'auto') return Number(v);
+  const counts = new Map();
+  for (const it of state.items) {
+    const r = AUTO_RATIOS.reduce((best, x) => (Math.abs(x - it.w / it.h) < Math.abs(best - it.w / it.h) ? x : best), AUTO_RATIOS[0]);
+    counts.set(r, (counts.get(r) || 0) + 1);
+  }
+  if (!counts.size) return 4 / 3;
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 function readLayout() {
   return {
     width: Math.max(320, Math.round(num('#img-w', 1920))),
     height: Math.max(240, Math.round(num('#img-h', 1080))),
-    pad: Math.max(0, num('#img-pad', 40)),
-    gap: Math.max(0, num('#img-gap', 0)),
-    margin: Math.max(0, num('#img-margin', 0)),
-    fit: $('#img-fit').value,
+    gap: Math.max(0, Math.round(num('#img-gap', 60))),
+    margin: Math.max(0, Math.round(num('#img-margin', 40))),
+    ratio: resolveRatio(),
     background: $('#img-bg').value,
   };
 }
@@ -137,12 +167,12 @@ async function addFiles(files) {
   toastSuccess(`Загружено изображений: ${done}`);
 }
 
-/** Средняя яркость рабочей копии изображения (0–255). */
+/** Средняя относительная яркость рабочей копии изображения, 0–1 (Rec. 709 по значениям sRGB). */
 function workingLuminance(imageData) {
   const d = imageData.data;
   let s = 0;
-  for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  return Math.round((s / (d.length / 4)) * 10) / 10;
+  for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+  return Number((s / (d.length / 4) / 255).toFixed(4));
 }
 
 const blankRatings = () => ({ neutral: null, positive: null, sad: null, threat: null, realism: null });
@@ -176,8 +206,8 @@ async function recomputeSalience() {
 }
 
 function setBusy(on, text) {
-  $('#img-busy').hidden = !on;
-  if (text) $('#img-busy-text').textContent = text;
+  $('#img-load-busy').hidden = !on;
+  if (text) $('#img-load-busy-text').textContent = text;
 }
 
 /* ---------------- оценки из CSV ---------------- */
@@ -315,267 +345,374 @@ const generatorItems = () => state.items.map((it) => ({
   id: it.id, name: it.name, group: it.group, category: it.category, sal: it.metrics, ratings: it.ratings, w: it.w, h: it.h,
 }));
 
-function generate() {
-  const opts = readOptions();
-  state.layout = readLayout();
-  const res = generateImageStimuli(generatorItems(), opts);
-  state.result = { ...res, options: opts, layout: state.layout, method: $('#img-method').value };
-  renderResults();
-  $('#img-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (res.warnings.length) toastError('Есть предупреждения — см. блок результатов', 6000);
-  else toastSuccess(`Собрано стимулов: ${res.built}`);
-}
+const busy = (on, text) => { $('#img-busy').hidden = !on; if (text) $('#img-busy-text').textContent = text; };
 
 function invalidateResult() {
-  if (state.result) {
-    state.result = null;
-    $('#img-results').hidden = true;
-    $('#img-results').innerHTML = '';
-  }
-}
-
-/* ---------------- результаты ---------------- */
-
-function renderResults() {
-  const r = state.result;
   const box = $('#img-results');
-  box.hidden = false;
-  const ctrl = r.stimuli.filter((s) => s.type === 'control').length;
-  const exp = r.stimuli.length - ctrl;
-
-  const bal = balanceReport(r.stimuli, r.options.metrics);
-  const balRows = bal.map((b) => `
-    <tr><td>${SAL_LABELS[b.metric]}</td>
-      ${b.perCat.map((p) => `<td class="num">${fmt(p.mean, 3)} <span class="muted">± ${fmt(p.sd, 3)}</span></td>`).join('')}
-      <td class="num ${b.anova && b.anova.p < 0.05 ? 'bad-cell' : 'ok-cell'}">${b.anova ? `F(${b.anova.df1}, ${b.anova.df2}) = ${fmt(b.anova.F, 2)}, p ${formatP(b.anova.p) .startsWith('<') ? formatP(b.anova.p) : '= ' + formatP(b.anova.p)}` : '—'}</td></tr>`).join('');
-
-  const posCnt = Object.fromEntries(EMOTION_KEYS.map((c) => [c, [0, 0, 0, 0]]));
-  for (const st of r.stimuli.filter((s) => s.type === 'experimental')) {
-    for (const c of st.layout) posCnt[c.category][POSITIONS.indexOf(c.pos)]++;
-  }
-  const posRows = EMOTION_KEYS.map((c) => `<tr><td>${EMOTION_BY_KEY[c].ru}</td>${posCnt[c].map((n) => `<td class="num">${n}</td>`).join('')}</tr>`).join('');
-
-  const usage = new Map();
-  for (const st of r.stimuli) for (const c of st.layout) usage.set(c.itemId, (usage.get(c.itemId) || 0) + 1);
-  const repeated = [...usage.values()].filter((n) => n > 1).length;
-
-  box.innerHTML = `
-    <h3 class="step-title"><span class="step-num">3</span>Результат</h3>
-    ${r.warnings.length ? `<div class="alert warn"><strong>Предупреждения</strong><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
-    <div class="alert ${r.built === r.requested ? 'ok' : 'warn'}">
-      Собрано стимулов: <strong>${r.built}</strong> из ${r.requested} (контрольных ${ctrl}, экспериментальных ${exp}).
-      Использовано изображений: ${usage.size}${repeated ? `, из них повторяются: ${repeated}` : ', повторов нет'}.
-    </div>
-
-    <div class="toolbar tool-gap">
-      <div class="subtab-bar flush" id="img-filter">
-        <button class="subtab active" data-f="all" type="button">Все</button>
-        <button class="subtab" data-f="control" type="button">Контрольные</button>
-        <button class="subtab" data-f="experimental" type="button">Экспериментальные</button>
-      </div>
-      <span class="toolbar-spacer"></span>
-      <button class="btn" id="img-dl-csv" type="button">↓ CSV</button>
-      <button class="btn btn-primary" id="img-dl-zip" type="button">↓ PNG-архив (ZIP)</button>
-    </div>
-    <div class="busy-bar tool-gap" id="img-zip-busy" hidden><span class="busy-spinner"></span><span id="img-zip-text"></span></div>
-
-    <div class="result-grid stim-grid" id="img-gallery"></div>
-
-    <h4 class="sub-heading">Баланс салиентности по эмоциональным категориям</h4>
-    <p class="muted-p">Использованные изображения, метод ${esc(r.method.toUpperCase())}. Однофакторный ANOVA: p &gt; .05 — категории не различаются по метрике.</p>
-    <div class="data-table-wrap"><table class="data-table"><thead><tr><th>Метрика</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>ANOVA</th></tr></thead><tbody>${balRows}</tbody></table></div>
-
-    <h4 class="sub-heading">Положение категорий в экспериментальных стимулах</h4>
-    <p class="muted-p">Сколько раз категория оказалась в каждой ячейке (всего экспериментальных: ${exp}).</p>
-    <div class="data-table-wrap narrow"><table class="data-table"><thead><tr><th></th><th>Лево-верх</th><th>Право-верх</th><th>Лево-низ</th><th>Право-низ</th></tr></thead><tbody>${posRows}</tbody></table></div>
-  `;
-
-  $('#img-dl-zip').addEventListener('click', downloadArchive);
-  $('#img-dl-csv').addEventListener('click', () => {
-    const { stimuliRows, tilesRows } = buildManifests();
-    downloadText(toCSV(stimuliRows), 'stimuli.csv');
-    setTimeout(() => downloadText(toCSV(tilesRows), 'stimuli_tiles.csv'), 300);
-  });
-  $$('#img-filter .subtab').forEach((b) => b.addEventListener('click', () => {
-    $$('#img-filter .subtab').forEach((x) => x.classList.toggle('active', x === b));
-    renderGallery(b.dataset.f);
-  }));
-  renderGallery('all');
+  if (box && !box.hidden) { box.hidden = true; box.innerHTML = ''; }
 }
 
-const THUMB_W = 480;
-
-function scaled(layout, s) {
-  return { ...layout, width: Math.round(layout.width * s), height: Math.round(layout.height * s),
-    pad: layout.pad * s, gap: layout.gap * s, margin: layout.margin * s };
-}
-
-async function renderGallery(filter) {
-  const r = state.result;
-  const grid = $('#img-gallery');
-  grid.innerHTML = '';
-  const list = r.stimuli.filter((s) => filter === 'all' || s.type === filter);
-  const L = scaled(r.layout, THUMB_W / r.layout.width);
-  for (const st of list) {
-    const card = document.createElement('div');
-    card.className = 'result-card stim-card';
-    const canvas = document.createElement('canvas');
-    drawImageStimulus(canvas, st, (id) => state.items.find((x) => x.id === id).img, L);
-    const legend = POSITIONS.map((pos) => {
-      const c = st.layout.find((x) => x.pos === pos);
-      return `<i style="background:${EMOTION_BY_KEY[c.category].color}" title="${EMOTION_BY_KEY[c.category].ru}"></i>`;
-    }).join('');
-    card.innerHTML = `
-      <div class="result-thumb stim-thumb"><span class="result-tag">${st.type === 'control' ? 'контроль' : 'эксперимент'}</span></div>
-      <div class="result-body">
-        <div class="result-name">${esc(st.name)}</div>
-        <div class="result-stats"><span>${GROUP_BY_KEY[st.group].ru}</span>
-          <span class="mini-grid">${legend}</span></div>
-      </div>`;
-    card.querySelector('.stim-thumb').prepend(canvas);
-    card.addEventListener('click', () => view(st));
-    grid.appendChild(card);
+async function generate() {
+  const opts = readOptions();
+  const L = readLayout();
+  const salOn = readCheck('img-sal-on');
+  const method = $('#img-method').value;
+  const btn = $('#img-generate');
+  btn.disabled = true;
+  busy(true, 'Подбор стимулов…');
+  try {
+    await tick();
+    const res = generateImageStimuli(generatorItems(), opts);
+    if (!res.stimuli.length) throw new Error('Не удалось собрать ни одного стимула — проверьте таблицу «доступно / нужно» и назначенные группы и оценки');
+    const byId = new Map(state.items.map((it) => [it.id, it]));
+    const imgOf = (id) => byId.get(id).img;
+    const tiles = tileRects(L);
+    const stimuli = res.stimuli.map((st) => {
+      const obj = {
+        ...st, filter: st.type, tag: st.type === 'control' ? 'контроль' : 'эксперимент',
+        draw: (canvas, scale = 1) => drawImageStimulus(canvas, st, imgOf,
+          scale === 1 ? L : { ...L, width: Math.round(L.width * scale), height: Math.round(L.height * scale), gap: L.gap * scale, margin: L.margin * scale }),
+      };
+      obj.aoi = st.layout.map((c) => ({ pos: c.pos, itemId: c.itemId, ...tiles[c.pos] }));
+      return obj;
+    });
+    if (salOn) {
+      let i = 0;
+      for (const st of stimuli) {
+        busy(true, `Оценка салиентности стимулов (${method.toUpperCase()}): ${++i} из ${stimuli.length}`);
+        await tick();
+        const ev = evaluateSalience(st, L.width, L.height, method);
+        st.sal = ev.metrics;
+        st.rel = st.aoi.map((r) => relativeAoiSalience(ev.map, r, L.width, L.height));
+      }
+    }
+    for (const st of stimuli) {
+      const legend = POSITIONS.map((pos) => {
+        const c = st.layout.find((x) => x.pos === pos);
+        return `<i style="background:${EMOTION_BY_KEY[c.category].color}" title="${EMOTION_BY_KEY[c.category].ru}"></i>`;
+      }).join('');
+      st.badges = `<span>${GROUP_BY_KEY[st.group].ru}</span><span class="mini-grid">${legend}</span>`;
+      const trs = st.layout.map((c, k) => {
+        const it = byId.get(c.itemId); const e = EMOTION_BY_KEY[c.category];
+        return `<tr><td>${c.pos}</td><td>${esc(it.name)}</td><td><span class="emo-chip" style="--c:${e.color}">${e.ru}</span></td><td class="num">${fmt(it.metrics.mean, 4)}</td>${st.rel ? `<td class="num">${fmt(st.rel[st.aoi.findIndex((a) => a.pos === c.pos)], 3)}</td>` : ''}</tr>`;
+      }).join('');
+      st.infoHtml = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Ячейка</th><th>Файл</th><th>Эмоция</th><th>Салиентность картинки (средняя)</th>${st.rel ? '<th>Относительная салиентность в стимуле</th>' : ''}</tr></thead><tbody>${trs}</tbody></table></div>`;
+    }
+    showResults(res, stimuli, opts, L, salOn, method, tiles, byId);
+    toastSuccess(`Собрано стимулов: ${stimuli.length}`);
+  } catch (e) {
+    console.error(e);
+    toastError(`Не удалось сформировать стимулы: ${e.message}`, 7000);
+  } finally {
+    busy(false);
+    btn.disabled = false;
+    renderFeasibility();
   }
 }
 
-function view(st) {
-  const r = state.result;
-  const rows = st.layout.map((c) => {
-    const it = state.items.find((x) => x.id === c.itemId);
-    const e = EMOTION_BY_KEY[c.category];
-    return `<tr><td>${c.pos}</td><td>${esc(it.name)}</td><td><span class="emo-chip" style="--c:${e.color}">${e.ru}</span></td><td class="num">${fmt(it.metrics.mean, 4)}</td></tr>`;
-  }).join('');
-  openViewer({
-    title: st.name,
-    info: `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Ячейка</th><th>Файл</th><th>Эмоция</th><th>Средняя салиентность</th></tr></thead><tbody>${rows}</tbody></table></div>`,
-    canvasFactory: () => {
-      const c = document.createElement('canvas');
-      drawImageStimulus(c, st, (id) => state.items.find((x) => x.id === id).img, r.layout);
-      return c;
-    },
+const f3 = (v) => (v == null || !Number.isFinite(v) ? '' : Number(v.toFixed(3)));
+
+/** Строки «показатель × эмоция»: среднее ± SD по изображениям и ANOVA. */
+function categoryRows(items, getters) {
+  return getters.map(([label, get]) => {
+    const vals = EMOTION_KEYS.map((c) => items.filter((it) => it.category === c).map(get).filter(Number.isFinite));
+    const a = oneWay(vals);
+    return { label, cells: vals.map((v) => ({ n: v.length, mean: meanOf(v), sd: sdOf(v) })), extra: a ? `F(${a.df1}, ${a.df2}) = ${a.F.toFixed(2)}, p ${formatP(a.p).startsWith('<') ? formatP(a.p) : '= ' + formatP(a.p)}` : '—', extraBad: a ? a.p < 0.05 : false };
   });
 }
 
-/* ---------------- экспорт ---------------- */
+function showResults(res, stimuli, opts, L, salOn, method, tiles, byId) {
+  const W = L.width; const H = L.height;
+  const usedIds = [...new Set(stimuli.flatMap((s) => s.layout.map((c) => c.itemId)))];
+  const usedItems = usedIds.map((id) => byId.get(id));
+  const uses = new Map();
+  for (const st of stimuli) for (const c of st.layout) uses.set(c.itemId, (uses.get(c.itemId) || 0) + 1);
+  const crops = usedItems.map((it) => ({ it, share: cropShare(it.w, it.h, L.ratio) }));
+  const warnings = [...res.warnings];
+  const heavy = crops.filter((c) => c.share > 0.05);
+  if (heavy.length) warnings.push(`У ${heavy.length} изображений формат отличается от формата рамки (${L.ratio.toFixed(2)}): края обрезаются по центру, до ${Math.round(Math.max(...heavy.map((c) => c.share)) * 100)}% площади. Чтобы не обрезать, выберите формат рамки как у ваших изображений или подготовьте изображения заранее.`);
 
-function buildManifests() {
-  const r = state.result;
-  const L = r.layout;
-  const tiles = tileRects(L);
-  const stimuliRows = [];
-  const tilesRows = [];
-  const scratch = document.createElement('canvas');
-  for (const st of r.stimuli) {
-    drawImageStimulus(scratch, st, (id) => state.items.find((x) => x.id === id).img, L);
-    const row = {
+  const ctrl = stimuli.filter((s) => s.type === 'control').length;
+  const rows = stimuli.map((st) => {
+    const r = {
       stimulus: st.name, type: st.type, group: st.group,
       emotion_category: st.type === 'control' ? st.category : 'mixed',
-      width: L.width, height: L.height,
-      stimulus_luminance: meanLuminance(scratch),
+      width: W, height: H, tile_w: tiles.TL.w, tile_h: tiles.TL.h, gap_px: L.gap,
+      mean_luminance: stimLuminance(st, W),
     };
     for (const pos of POSITIONS) {
       const c = st.layout.find((x) => x.pos === pos);
-      row[`${pos}_image`] = state.items.find((x) => x.id === c.itemId).name;
-      row[`${pos}_emotion`] = c.category;
+      r[`${pos}_image`] = byId.get(c.itemId).name;
+      r[`${pos}_emotion`] = c.category;
     }
-    for (const m of r.options.metrics) {
-      const v = st.layout.map((c) => state.items.find((x) => x.id === c.itemId).metrics[m]);
-      row[`salience_${m}_mean`] = (v.reduce((a, b) => a + b, 0) / v.length).toFixed(4);
-      row[`salience_${m}_range`] = (Math.max(...v) - Math.min(...v)).toFixed(4);
+    for (const m of opts.metrics) {
+      const v = st.layout.map((c) => byId.get(c.itemId).metrics[m]);
+      r[`image_${m}_mean`] = (v.reduce((a, b) => a + b, 0) / v.length).toFixed(4);
+      r[`image_${m}_range`] = (Math.max(...v) - Math.min(...v)).toFixed(4);
     }
-    stimuliRows.push(row);
+    if (st.sal) for (const k of SAL_KEYS) r[`screen_salience_${k}`] = st.sal[k];
+    return r;
+  });
+  const tilesRows = [];
+  for (const st of stimuli) {
     for (const pos of POSITIONS) {
       const c = st.layout.find((x) => x.pos === pos);
-      const it = state.items.find((x) => x.id === c.itemId);
-      const f = fitImage(it.w, it.h, tiles[pos], L.fit);
+      const it = byId.get(c.itemId);
+      const k = st.aoi.findIndex((a) => a.pos === pos);
       tilesRows.push({
         stimulus: st.name, type: st.type, group: st.group, position: pos,
         image: it.name, emotion_category: c.category,
         rating_neutral: it.ratings.neutral, rating_positive: it.ratings.positive,
         rating_sad: it.ratings.sad, rating_threat: it.ratings.threat, rating_realism: it.ratings.realism,
-        ...Object.fromEntries(SAL_KEYS.map((k) => [`salience_${k}`, it.metrics[k]])),
-        luminance_mean: it.lum ?? '',
-        aoi_x: f.dx, aoi_y: f.dy, aoi_w: Math.round(f.dw), aoi_h: Math.round(f.dh),
-        tile_x: tiles[pos].x, tile_y: tiles[pos].y, tile_w: tiles[pos].w, tile_h: tiles[pos].h,
+        ...Object.fromEntries(SAL_KEYS.map((m) => [`image_salience_${m}`, it.metrics[m]])),
+        image_luminance: it.lum ?? '', crop_share: f3(cropShare(it.w, it.h, L.ratio)),
+        salience_rel_in_stimulus: st.rel ? f3(st.rel[k]) : '',
+        aoi_x: tiles[pos].x, aoi_y: tiles[pos].y, aoi_w: tiles[pos].w, aoi_h: tiles[pos].h,
       });
     }
   }
-  return { stimuliRows, tilesRows };
-}
+  const imageRows = usedItems.map((it) => ({
+    image: it.name, group: it.group, emotion_category: it.category,
+    rating_neutral: it.ratings.neutral, rating_positive: it.ratings.positive, rating_sad: it.ratings.sad, rating_threat: it.ratings.threat, rating_realism: it.ratings.realism,
+    ...Object.fromEntries(SAL_KEYS.map((m) => [`salience_${m}`, it.metrics[m]])), salience_method: it.method,
+    luminance: it.lum ?? '', original_w: it.w, original_h: it.h, crop_share: f3(cropShare(it.w, it.h, L.ratio)), times_used: uses.get(it.id),
+  }));
 
-async function downloadArchive() {
-  const r = state.result;
-  const busy = $('#img-zip-busy');
-  busy.hidden = false;
-  $('#img-dl-zip').disabled = true;
-  try {
-    const enc = new TextEncoder();
-    const entries = [];
-    const canvas = document.createElement('canvas');
-    let i = 0;
-    for (const st of r.stimuli) {
-      $('#img-zip-text').textContent = `Отрисовка PNG: ${++i} из ${r.stimuli.length}`;
-      await tick();
-      drawImageStimulus(canvas, st, (id) => state.items.find((x) => x.id === id).img, r.layout);
-      const blob = await canvasToBlob(canvas);
-      entries.push({ name: `stimuli/${st.name}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
-    }
-    const ins = readInstruction();
-    if (ins.on) {
-      drawInstruction(canvas, instructionOpts(r.layout, ins));
-      const blob = await canvasToBlob(canvas);
-      entries.unshift({ name: 'instruction.png', data: new Uint8Array(await blob.arrayBuffer()) });
-    }
-    const { stimuliRows, tilesRows } = buildManifests();
-    const bom = '﻿';
-    entries.push({ name: 'stimuli.csv', data: enc.encode(bom + toCSV(stimuliRows)) });
-    entries.push({ name: 'stimuli_tiles.csv', data: enc.encode(bom + toCSV(tilesRows)) });
-    entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({
-      experiment: 'images-2x2', generated: new Date().toISOString(),
-      options: r.options, layout: r.layout, saliencyMethod: r.method, seedUsed: r.seedUsed,
-      instruction: ins.on ? { title: ins.title, body: ins.body, footer: ins.footer } : null,
-    }, null, 2)) });
-    const zip = buildZip(entries);
-    downloadBlob(new Blob([zip], { type: 'application/zip' }), `emotional_images_stimuli_${stamp()}.zip`);
-    toastSuccess(`Архив готов: ${r.stimuli.length} PNG + таблицы`);
-  } catch (e) {
-    toastError(`Не удалось собрать архив: ${e.message}`);
-  } finally {
-    busy.hidden = true;
-    $('#img-dl-zip').disabled = false;
+  // баланс исходных изображений по эмоциям
+  const bal = balanceReport(res.stimuli, opts.metrics);
+  const balRows = bal.map((b) => ({
+    label: SAL_LABELS[b.metric],
+    cells: b.perCat.map((p) => ({ n: p.n, mean: p.mean, sd: p.sd })),
+    extra: b.anova ? `F(${b.anova.df1}, ${b.anova.df2}) = ${b.anova.F.toFixed(2)}, p ${formatP(b.anova.p).startsWith('<') ? formatP(b.anova.p) : '= ' + formatP(b.anova.p)}` : '—',
+    extraBad: b.anova ? b.anova.p < 0.05 : false,
+  }));
+  const lumRows = categoryRows(usedItems, [['Яркость картинки (0–1)', (it) => it.lum]]);
+  const catHeaders = EMOTIONS.map((e) => e.ru);
+
+  const posCnt = Object.fromEntries(EMOTION_KEYS.map((c) => [c, [0, 0, 0, 0]]));
+  for (const st of stimuli.filter((s) => s.type === 'experimental')) for (const c of st.layout) posCnt[c.category][POSITIONS.indexOf(c.pos)]++;
+  const exp = stimuli.length - ctrl;
+  const repeated = [...uses.values()].filter((n) => n > 1).length;
+
+  let summary = `
+    <h4 class="sub-heading">Баланс салиентности исходных изображений по эмоциям</h4>
+    <p class="muted-p">Использованные изображения, метод ${esc(method.toUpperCase())}. Однофакторный ANOVA: p &gt; .05 — эмоции не различаются по метрике.</p>
+    ${metricTable(catHeaders, balRows)}
+    <h4 class="sub-heading">Яркость исходных изображений по эмоциям</h4>
+    <p class="muted-p">Нужна для анализа зрачка: изображения разных эмоций не должны различаться по яркости.</p>
+    ${metricTable(catHeaders, lumRows)}
+    <h4 class="sub-heading">Положение эмоций в экспериментальных стимулах</h4>
+    <p class="muted-p">Сколько раз эмоция оказалась в каждой ячейке (всего экспериментальных: ${exp}).</p>
+    <div class="data-table-wrap narrow"><table class="data-table"><thead><tr><th></th><th>Лево-верх</th><th>Право-верх</th><th>Лево-низ</th><th>Право-низ</th></tr></thead><tbody>${EMOTION_KEYS.map((c) => `<tr><td>${EMOTION_BY_KEY[c].ru}</td>${posCnt[c].map((n) => `<td class="num">${n}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+  let salByType = null; let relRows = null; let typeHeaders = [];
+  if (salOn) {
+    const types = [['control', 'Контрольные'], ['experimental', 'Экспериментальные']].filter(([k]) => stimuli.some((s) => s.type === k));
+    typeHeaders = types.map((t) => t[1]);
+    salByType = salienceBalance(stimuli, (s) => s.type, types);
+    const tileRel = stimuli.flatMap((s) => s.layout.map((c, i) => ({ category: c.category, rel: s.rel[s.aoi.findIndex((a) => a.pos === c.pos)] })));
+    const vals = EMOTION_KEYS.map((c) => tileRel.filter((t) => t.category === c).map((t) => t.rel).filter(Number.isFinite));
+    const a = oneWay(vals);
+    relRows = [{ label: 'Относительная салиентность картинки в стимуле', cells: vals.map((v) => ({ n: v.length, mean: meanOf(v), sd: sdOf(v) })),
+      extra: a ? `F(${a.df1}, ${a.df2}) = ${a.F.toFixed(2)}, p ${formatP(a.p).startsWith('<') ? formatP(a.p) : '= ' + formatP(a.p)}` : '—', extraBad: a ? a.p < 0.05 : false }];
+    summary += `
+      <h4 class="sub-heading">Салиентность готовых стимулов (${esc(METHOD_LABELS[method])})</h4>
+      <p class="muted-p">Оценена для всего экрана (картинки на фоне). «Относительная салиентность» — средняя салиентность рамки картинки относительно среднего по экрану (1 — как в среднем): если картинки одной эмоции заметнее других, на них будут смотреть чаще независимо от эмоции.</p>
+      ${metricTable(types.map((t) => t[1]), salByType)}
+      ${metricTable(catHeaders, relRows)}`;
   }
+
+  const pngs = [];
+  const insText = editor.texts().main;
+  if (editor.enabled()) {
+    pngs.push({ path: 'instruction.png', desc: 'Инструкция для участника', draw: (c, s = 1) => drawInstructionText(c, { width: W, height: H, background: L.background, color: FG, fontFamily: 'Arial, Helvetica, sans-serif', text: editor.texts().main, scale: s }) });
+  }
+
+  mountResults($('#img-results'), {
+    prefix: 'img', step: 3, width: W, height: H, stimuli, title: 'Эмоционально окрашенные изображения',
+    filters: [['control', 'Контрольные'], ['experimental', 'Экспериментальные']],
+    requested: res.requested, built: stimuli.length, warnings,
+    resultNote: `Контрольных ${ctrl}, экспериментальных ${exp}. Использовано изображений: ${usedIds.length}${repeated ? `, из них повторяются: ${repeated}` : ', повторов нет'}.`,
+    summaryHtml: summary, pngs,
+    manifests: [
+      { file: 'stimuli.csv', rows, desc: 'По строке на стимул: тип, группа, состав по ячейкам, средняя яркость, салиентность исходных картинок и готового стимула' },
+      { file: 'stimuli_tiles.csv', rows: tilesRows, desc: 'По строке на картинку в стимуле: эмоция, оценки по шкалам, салиентность, яркость, доля обрезки, область интереса в пикселях' },
+      { file: 'images.csv', rows: imageRows, desc: 'По строке на использованное изображение: группа, эмоция, оценки, салиентность, яркость, размер, сколько раз использовано' },
+    ],
+    methods: () => methodsDoc({ res, stimuli, opts, L, salOn, method, tiles, usedItems, uses, balRows, lumRows, salByType, typeHeaders, relRows, posCnt, ctrl, exp, crops, insText: editor.texts().main, instructionOn: editor.enabled() }),
+    readmeIntro: 'Стимулы 2×2 из эмоционально окрашенных изображений. Правильных ответов в методике нет — зоны интереса каждой картинки приведены в stimuli_tiles.csv.',
+    archiveName: 'emotional_images_stimuli',
+    settings: { experiment: 'emotional-images-2x2', options: opts, layout: L, saliencyMethod: method, saliencyOnStimuli: salOn, seedUsed: res.seedUsed, instruction: editor.enabled() ? insText : null },
+  });
+  $('#img-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ---------------- инструкция ---------------- */
+/* ---------------- описание для раздела «Методы» ---------------- */
 
-const readInstruction = () => ({
-  on: $('#img-instr-on').checked,
-  title: $('#img-instr-title').value.trim(),
-  body: $('#img-instr-body').value,
-  footer: $('#img-instr-footer').value.trim(),
-});
-
-const instructionOpts = (L, ins) => ({
-  width: L.width, height: L.height, background: L.background,
-  fontFamily: 'Arial, Helvetica, sans-serif', title: ins.title, body: ins.body, footer: ins.footer,
-});
-
-function updateInstructionPreview() {
-  const L = readLayout();
-  const s = 960 / L.width;
-  drawInstruction($('#img-instr-canvas'), instructionOpts({ ...L, width: Math.round(L.width * s), height: Math.round(L.height * s) }, readInstruction()));
+function methodsDoc(c) {
+  const { H1, H2, P, UL, TABLE, paramTable } = M;
+  const { res, stimuli, opts, L, salOn, method, tiles, usedItems, uses, balRows, lumRows, salByType, typeHeaders, relRows, posCnt, ctrl, exp, crops } = c;
+  const catRu = (k) => EMOTION_BY_KEY[k].ru.toLowerCase();
+  const loaded = state.items;
+  const cellCounts = GROUP_KEYS.filter((g) => opts.groups.includes(g)).map((g) => [GROUP_BY_KEY[g].ru, ...EMOTION_KEYS.map((k) => String(usedItems.filter((it) => it.group === g && it.category === k).length))]);
+  const loadedCounts = GROUP_KEYS.filter((g) => opts.groups.includes(g)).map((g) => [GROUP_BY_KEY[g].ru, ...EMOTION_KEYS.map((k) => String(loaded.filter((it) => it.group === g && it.category === k).length))]);
+  const catHeaders = EMOTIONS.map((e) => e.ru);
+  const marginCat = num('#img-margin-cat', 0); const minReal = parseNum($('#img-minreal').value);
+  const blocks = [
+    H1('Эмоционально окрашенные изображения: описание стимулов'),
+    P(`Набор содержит ${stimuli.length} стимулов: ${ctrl} контрольных и ${exp} экспериментальных. Каждый стимул — экран ${L.width} × ${L.height} пикс. с четырьмя изображениями, расположенными в сетке 2 × 2. ` +
+      'Все четыре изображения одного стимула относятся к одной группе объектов (один человек, группа людей, животные, предметы). ' +
+      'В контрольном стимуле все четыре изображения принадлежат одной эмоциональной категории; в экспериментальном — четырём разным категориям (нейтральная, позитивная, грусть, угроза). Правильных ответов в методике нет.'),
+    H2('1. Исходный материал'),
+    P(`В подборе участвовали ${loaded.length} загруженных изображений; в готовый набор вошло ${usedItems.length}. Эмоциональная категория изображения определялась по средним оценкам массовой валидации: категорией считалась шкала с наибольшей средней оценкой (нейтральность, позитивность, грусть, угроза)` +
+      `${marginCat > 0 ? `; изображения, у которых главная шкала опережала вторую менее чем на ${marginCat} балла, не использовались` : '; при равенстве двух наибольших оценок категория не присваивалась, и изображение не использовалось'}` +
+      `${$('#img-zscale').checked ? '; шкалы сравнивались в стандартизованном виде (z-оценки по всем изображениям)' : ''}` +
+      `${minReal != null ? `; изображения с оценкой реалистичности ниже ${minReal} не использовались` : ''}. Группа объектов задана в таблице оценок или назначена вручную.`),
+    P('Число загруженных изображений с назначенными группой и категорией:'),
+    TABLE(['Группа', ...catHeaders], loadedCounts),
+    P('Число изображений, вошедших в набор:'),
+    TABLE(['Группа', ...catHeaders], cellCounts),
+    H2('2. Параметры стимулов'),
+    paramTable([
+      ['Размер стимула', `${L.width} × ${L.height} пикс.`],
+      ['Цвет фона', M.colorText(L.background)],
+      ['Размер рамки каждой картинки', `${tiles.TL.w} × ${tiles.TL.h} пикс.`, 'Рамки четырёх картинок одинаковы'],
+      ['Формат рамки (ширина : высота)', `${L.ratio.toFixed(3)}`, 'Если формат изображения отличается, края обрезаются по центру'],
+      ['Расстояние между картинками', `${L.gap} пикс.`, 'Одинаковое по горизонтали и по вертикали'],
+      ['Поле от краёв экрана', `не менее ${L.margin} пикс.`, 'Сетка 2×2 расположена по центру экрана'],
+      ['Контрольных стимулов на каждую эмоцию в каждой группе', opts.controlPerCategory],
+      ['Экспериментальных стимулов на каждую группу', opts.experimentalPerGroup],
+      ['Группы', opts.groups.map((g) => GROUP_BY_KEY[g].ru).join('; ')],
+      ['Повторы изображений в разных стимулах', opts.allowRepeats ? 'допускаются' : 'не допускаются'],
+      ['Показатели салиентности для уравнивания', opts.metrics.map((k) => SAL_LABELS[k]).join('; ')],
+      ['Алгоритм оценки салиентности', METHOD_LABELS[method]],
+      ['Номер случайного набора', `${opts.seed}${res.seedUsed != null && res.seedUsed !== opts.seed ? ` (лучший из ${opts.attempts ?? 12} вариантов подбора: ${res.seedUsed})` : ''}`],
+    ]),
+    H2('3. Подбор изображений в стимулы'),
+    P('Для каждого исходного изображения оценена низкоуровневая салиентность (см. раздел «Салиентность»). Показатели салиентности стандартизованы (z-оценки по всем подходящим изображениям). ' +
+      'Для каждого стимула четыре изображения подбирались так, чтобы различие их салиентности было минимальным: перебирались опорные изображения, к каждому подбирались ближайшие по вектору z-оценок изображения нужных категорий, выбиралась комбинация с наименьшей суммарной дисперсией z-оценок. ' +
+      `${opts.allowRepeats ? 'При разрешённых повторах к стоимости комбинации добавлялся штраф за повторное использование изображения, чтобы изображения использовались равномерно. ' : 'Каждое изображение использовалось не более одного раза. '}` +
+      'Подбор повторялся несколько раз с разным случайным порядком, выбирался вариант, в котором собрано больше стимулов, а затем — с лучшим балансом салиентности между эмоциями.'),
+    P('Положение эмоций по ячейкам сетки в экспериментальных стимулах выравнивалось по всему набору: для каждого стимула из 24 возможных расстановок выбиралась та, которая минимизирует перекос счётчиков «эмоция × ячейка»; одинаковые раскладки в пределах группы по возможности не повторялись' + (opts.allowRepeats ? ', а повторно используемое изображение по возможности ставилось в другую ячейку' : '') + '.'),
+    H2('4. Состав набора'),
+    TABLE(['Условие', 'Число стимулов'], [...new Set(stimuli.map((s) => `${s.type === 'control' ? 'контроль' : 'эксперимент'} · ${GROUP_BY_KEY[s.group].ru}${s.type === 'control' ? ' · ' + catRu(s.category) : ''}`))].map((k) => [k, String(stimuli.filter((s) => `${s.type === 'control' ? 'контроль' : 'эксперимент'} · ${GROUP_BY_KEY[s.group].ru}${s.type === 'control' ? ' · ' + catRu(s.category) : ''}` === k).length)])),
+    P('Положение эмоций в экспериментальных стимулах (сколько раз эмоция оказалась в каждой ячейке):'),
+    TABLE(['Эмоция', 'Лево-верх', 'Право-верх', 'Лево-низ', 'Право-низ'], EMOTION_KEYS.map((k) => [EMOTION_BY_KEY[k].ru, ...posCnt[k].map(String)])),
+    P('Перечень стимулов (в таблице: имя файла, тип, группа, эмоции в ячейках лево-верх / право-верх / лево-низ / право-низ):'),
+    TABLE(['Имя файла', 'Тип', 'Группа', 'Эмоции по ячейкам'], stimuli.map((s) => [`${s.name}.png`, s.type === 'control' ? 'контроль' : 'эксперимент', GROUP_BY_KEY[s.group].ru, POSITIONS.map((p) => EMOTION_BY_KEY[s.layout.find((x) => x.pos === p).category].short).join(' / ')]), [5, 2, 2.5, 3.5]),
+    H2('5. Салиентность и яркость'),
+    ...M.salienceParagraphs(method, opts.metrics),
+    P('Сравнение салиентности исходных изображений между эмоциональными категориями (среднее ± стандартное отклонение; n — число изображений; однофакторный дисперсионный анализ, p > 0,05 — категории не различаются):'),
+    M.balanceTable(catHeaders, balRows),
+    P('Яркость исходных изображений (средняя относительная яркость рабочей копии по значениям sRGB, коэффициенты Rec. 709, шкала 0–1) по эмоциональным категориям:'),
+    M.balanceTable(catHeaders, lumRows),
+  ];
+  if (salOn) {
+    blocks.push(P('Салиентность оценивалась и для готовых стимулов целиком (картинки на фоне). Сравнение контрольных и экспериментальных стимулов:'));
+    blocks.push(M.balanceTable(typeHeaders, salByType));
+    blocks.push(P('Относительная салиентность рамок картинок в готовых стимулах по эмоциям (1 — как в среднем по экрану):'));
+    blocks.push(M.balanceTable(catHeaders, relRows));
+  }
+  blocks.push(M.luminanceParagraph());
+  blocks.push(H2('6. Инструкция для участника'));
+  if (c.instructionOn) blocks.push(P(`Инструкция предъявляется отдельным экраном instruction.png (того же размера и цвета фона, что стимулы). Текст: ${String(c.insText).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
+  else blocks.push(P('Инструкция в архив не включена.'));
+  blocks.push(H2('7. Области интереса и обработка обрезки'),
+    P(`Область интереса каждой картинки — её рамка (${tiles.TL.w} × ${tiles.TL.h} пикс.); координаты приведены в stimuli_tiles.csv. ` +
+      `Изображения приводятся к формату рамки с обрезкой краёв по центру; максимальная доля обрезанной площади среди использованных изображений — ${Math.round(Math.max(0, ...crops.map((x) => x.share)) * 100)}%.`),
+    M.reproducibilityParagraph(opts.seed));
+  return blocks;
 }
-
-const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
 
 /* ---------------- инициализация ---------------- */
 
+function panelHtml() {
+  return `
+    ${panelHead('01', 'Эмоционально окрашенные изображения · создание стимулов', `
+      Стимул — сетка 2×2 из четырёх изображений одной группы (один человек, группа людей, животные, предметы).
+      Контрольный: все четыре изображения одной эмоциональной категории. Экспериментальный: четыре разные категории,
+      положения категорий по ячейкам не повторяются. Промежутки между картинками по горизонтали и по вертикали всегда равны.`)}
+
+    ${stepTitle(1, 'Изображения и оценки')}
+    <div class="dropzone" id="img-dropzone" tabindex="0">
+      <input type="file" id="img-file" accept="image/jpeg,image/png,image/webp,image/bmp" multiple hidden>
+      <div class="dropzone-inner">
+        <div class="dropzone-icon">⤓</div>
+        <p class="dropzone-text">Перетащите изображения сюда</p>
+        <p class="dropzone-or">— или —</p>
+        <button class="btn btn-primary" type="button">Выбрать файлы</button>
+        <p class="dropzone-hint">JPG · PNG · WebP · BMP — сразу много</p>
+      </div>
+    </div>
+    <div class="toolbar tool-gap">
+      <label class="btn" for="img-ratings-file">↑ Загрузить таблицу оценок (CSV)</label>
+      <input type="file" id="img-ratings-file" accept=".csv,.tsv,.txt" hidden>
+      <button class="btn btn-ghost" id="img-template" type="button">↓ Скачать образец таблицы</button>
+      <span class="toolbar-info" id="img-ratings-info">Столбцы таблицы: файл, группа (необязательно), нейтральность, позитивность, грусть, угроза, реалистичность</span>
+      <span class="toolbar-spacer"></span>
+      <button class="btn btn-ghost" id="img-clear" type="button" disabled>⊘ Убрать все изображения</button>
+    </div>
+    <div class="busy-bar tool-gap" id="img-load-busy" hidden><span class="busy-spinner"></span><span id="img-load-busy-text">Оценка салиентности…</span></div>
+    <div id="img-table-block" hidden>
+      <div class="toolbar tool-gap">
+        <span class="toolbar-info" id="img-count"></span>
+        <span class="toolbar-spacer"></span>
+        <span class="toolbar-info">Назначить группу всем изображениям, у которых она не указана:</span>
+        <div class="select-wrap select-inline"><select id="img-bulk-group"></select></div>
+        <button class="btn" id="img-bulk-apply" type="button">Назначить</button>
+      </div>
+      <div class="data-table-wrap table-scroll tool-gap"><table class="data-table" id="img-table"></table></div>
+    </div>
+
+    ${stepTitle(2, 'Параметры')}
+    ${card(`
+      ${sub('Что создаём')}
+      ${grid(`
+        ${fld.num('img-ctrl', 'Контрольных стимулов на каждую эмоцию в каждой группе', 1, { min: 0 })}
+        ${fld.num('img-exp', 'Экспериментальных стимулов на каждую группу', 4, { min: 0 })}
+        <div class="field"><label>Какие группы изображений использовать</label><div class="check-row" id="img-groups"></div></div>
+        ${fld.num('img-seed', 'Номер случайного набора', 1, { hint: 'При том же номере и тех же данных получится тот же набор стимулов. Поменяйте номер, чтобы получить другой.' })}
+        ${fld.check('img-repeats', 'Разрешить использовать одно изображение в нескольких стимулах', false, { hint: 'Если выключено и изображений не хватает, появится предупреждение.' })}
+      `)}
+      ${sep()}
+      ${sub('Эмоциональная категория изображения')}
+      ${grid(`
+        ${fld.num('img-margin-cat', 'Минимальный отрыв главной шкалы от второй, баллы', 0, { min: 0, step: 0.1, hint: 'Эмоция картинки — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше этого значения, картинка считается «смешанной» и не используется. 0 — не ограничивать.' })}
+        ${fld.num('img-minreal', 'Минимальная реалистичность', '', { step: 0.1, placeholder: 'не ограничивать', hint: 'Картинки с оценкой реалистичности ниже порога не используются.' })}
+        ${fld.check('img-zscale', 'Сравнивать шкалы в стандартизованном виде (z-оценки)', false, { hint: 'Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.' })}
+      `)}
+      ${sep()}
+      ${sub('Внешний вид')}
+      ${grid(`
+        ${fld.pair('img-w', 'img-h', 'Размер стимула: ширина × высота, пикс.', 1920, 1080, { min: 240 })}
+        ${fld.num('img-gap', 'Расстояние между картинками, пикс.', 60, { min: 0, hint: 'Одинаковое по горизонтали и по вертикали: четыре рамки одного размера стоят по центру экрана.' })}
+        ${fld.num('img-margin', 'Минимальное поле от краёв экрана, пикс.', 40, { min: 0 })}
+        ${fld.select('img-ratio', 'Формат рамки картинки', RATIO_OPTIONS, 'auto', { hint: 'Все четыре картинки показываются в рамках одного размера и формата. Если формат картинки другой, края обрезаются по центру; доля обрезки показывается в результатах.' })}
+        ${fld.color('img-bg', 'Цвет фона стимула', BG)}
+      `)}
+      ${sep()}
+      ${sub('Салиентность')}
+      ${grid(`
+        ${fld.select('img-method', 'Алгоритм оценки салиентности', [['ft', 'FT — для цветных сцен (рекомендуется)'], ['local', 'Local Contrast — цветовой контраст'], ['dog', 'DoG — по яркости'], ['sr', 'SR — спектральный остаток (яркость)']], 'ft')}
+        <div class="field"><label>Показатели салиентности, по которым уравниваются картинки внутри стимула</label><div class="check-row" id="img-metrics"></div></div>
+        ${fld.check('img-sal-on', 'Оценить салиентность готовых стимулов целиком', true, { hint: 'Для каждого стимула считается карта салиентности всего экрана и относительная салиентность рамки каждой картинки (нужна как ковариата для анализа движений глаз).' })}
+      `)}
+      ${instructionEditorHtml('img', { items: [{ key: 'main', label: 'Инструкция', text: INSTRUCTION }], lead: 'Сохраняется в архив отдельной картинкой <code>instruction.png</code> того же размера, что и стимулы. Проверьте, что текст соответствует вашей процедуре: что именно должен делать участник.' })}
+    `)}
+    ${generateBar('img')}`;
+}
+
 export function initImagesGenerator() {
+  $('#mode-img').innerHTML = panelHtml();
   $('#img-groups').innerHTML = GROUPS.map((g) =>
     `<label class="check"><input type="checkbox" value="${g.key}" checked><span>${g.ru}</span></label>`).join('');
   $('#img-metrics').innerHTML = SAL_KEYS.map((k) =>
     `<label class="check"><input type="checkbox" value="${k}" checked><span>${SAL_LABELS[k]}</span></label>`).join('');
   $('#img-bulk-group').innerHTML = GROUPS.map((g) => `<option value="${g.key}">${g.ru}</option>`).join('');
+  editor = mountInstructionEditor('img', [{ key: 'main', label: 'Инструкция', text: INSTRUCTION }], () => {
+    const l = readLayout();
+    return { width: l.width, height: l.height, background: l.background, color: FG, fontFamily: 'Arial, Helvetica, sans-serif' };
+  });
 
   bindDropzone($('#img-dropzone'), $('#img-file'), addFiles);
   $('#img-ratings-file').addEventListener('change', async (e) => {
@@ -598,18 +735,11 @@ export function initImagesGenerator() {
   });
   $('#img-table').addEventListener('change', onTableEdit);
   $('#img-method').addEventListener('change', recomputeSalience);
-  $('#img-instr-body').value = IMAGES_INSTRUCTION.body;
-  $('#img-instr-title').value = IMAGES_INSTRUCTION.title;
-  $('#img-instr-footer').value = IMAGES_INSTRUCTION.footer;
-  $$('#mode-img-gen .params-card input, #mode-img-gen .params-card select').forEach((el) => {
-    if (el.id === 'img-method' || el.id.includes('-instr-')) return;
-    el.addEventListener('change', () => { invalidateResult(); refreshDerived(); updateInstructionPreview(); });
+  $$('#mode-img .params-card input, #mode-img .params-card select').forEach((el) => {
+    if (el.id === 'img-method' || el.id.includes('-ins-')) return;
+    el.addEventListener('change', () => { invalidateResult(); refreshDerived(); editor.preview(); });
   });
-  $$('#mode-img-gen [id^="img-instr-"]').forEach((el) => el.addEventListener('input', updateInstructionPreview));
-  updateInstructionPreview();
   $('#img-generate').addEventListener('click', generate);
+  editor.preview();
   renderFeasibility();
 }
-
-// для тестов в браузере
-export const _state = state;

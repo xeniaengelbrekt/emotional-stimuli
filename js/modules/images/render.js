@@ -1,53 +1,60 @@
 /* ============================================================
    images/render.js — отрисовка стимула 2×2 на canvas.
-   Геометрия (tileRects, fitImage) — чистые функции;
-   drawImageStimulus рисует и возвращает точные рамки изображений
-   (они нужны для зон интереса при анализе движений глаз).
+
+   Все четыре картинки показываются в рамках ОДНОГО размера и формата,
+   поэтому промежуток между ними по горизонтали и по вертикали всегда
+   одинаков (настройка «расстояние между картинками»). Если формат
+   картинки отличается от формата рамки, края обрезаются по центру.
+
+   Геометрия (tileRects, fitImage) — чистые функции; drawImageStimulus
+   рисует и возвращает точные рамки изображений (зоны интереса).
    ============================================================ */
 
 import { POSITIONS } from './generator.js';
+import { BG } from '../../kit/defaults.js';
 
 export const DEFAULT_LAYOUT = {
   width: 1920,
   height: 1080,
-  margin: 0,            // поле вокруг всей сетки, px
-  gap: 0,               // зазор между ячейками, px
-  pad: 40,              // отступ изображения от краёв своей ячейки, px
-  background: '#7f7f7f',
-  fit: 'contain',       // contain — вписать целиком; cover — обрезать по центру до размера плитки
+  margin: 40,           // минимальное поле от краёв экрана до картинок, px
+  gap: 60,              // расстояние между картинками (по горизонтали и по вертикали одинаковое), px
+  ratio: 4 / 3,         // формат рамки картинки: ширина / высота
+  background: BG,
 };
 
-/** Плитки (области под изображения) в порядке TL, TR, BL, BR. */
+/**
+ * Рамки картинок в порядке TL, TR, BL, BR. Рамки одного размера (максимально крупного,
+ * при котором сетка 2×2 с заданным расстоянием помещается на экран) и стоят по центру экрана:
+ * расстояние между соседними рамками равно gap и по горизонтали, и по вертикали.
+ */
 export function tileRects(layout) {
   const L = { ...DEFAULT_LAYOUT, ...layout };
-  const cw = (L.width - 2 * L.margin - L.gap) / 2;
-  const ch = (L.height - 2 * L.margin - L.gap) / 2;
+  const availW = (L.width - 2 * L.margin - L.gap) / 2;
+  const availH = (L.height - 2 * L.margin - L.gap) / 2;
+  let w = Math.min(availW, availH * L.ratio);
+  w = Math.max(1, Math.floor(w));
+  const h = Math.max(1, Math.floor(w / L.ratio));
+  const x0 = Math.round((L.width - (2 * w + L.gap)) / 2);
+  const y0 = Math.round((L.height - (2 * h + L.gap)) / 2);
   const out = {};
   POSITIONS.forEach((pos, i) => {
-    const col = i % 2, row = Math.floor(i / 2);
-    out[pos] = {
-      x: Math.round(L.margin + col * (cw + L.gap) + L.pad),
-      y: Math.round(L.margin + row * (ch + L.gap) + L.pad),
-      w: Math.round(cw - 2 * L.pad),
-      h: Math.round(ch - 2 * L.pad),
-    };
+    const col = i % 2; const row = Math.floor(i / 2);
+    out[pos] = { x: x0 + col * (w + L.gap), y: y0 + row * (h + L.gap), w, h };
   });
   return out;
 }
 
-/** Как поместить картинку iw×ih в плитку: прямоугольник источника и приёмника. */
-export function fitImage(iw, ih, tile, fit) {
-  if (fit === 'cover') {
-    const k = Math.max(tile.w / iw, tile.h / ih);
-    const sw = tile.w / k, sh = tile.h / k;
-    return { sx: (iw - sw) / 2, sy: (ih - sh) / 2, sw, sh, dx: tile.x, dy: tile.y, dw: tile.w, dh: tile.h };
-  }
-  const k = Math.min(tile.w / iw, tile.h / ih);
-  const dw = Math.round(iw * k), dh = Math.round(ih * k);
-  return {
-    sx: 0, sy: 0, sw: iw, sh: ih,
-    dx: tile.x + Math.round((tile.w - dw) / 2), dy: tile.y + Math.round((tile.h - dh) / 2), dw, dh,
-  };
+/** Как поместить картинку iw×ih в рамку: обрезка по центру до формата рамки (cover). */
+export function fitImage(iw, ih, tile) {
+  const k = Math.max(tile.w / iw, tile.h / ih);
+  const sw = tile.w / k; const sh = tile.h / k;
+  return { sx: (iw - sw) / 2, sy: (ih - sh) / 2, sw, sh, dx: tile.x, dy: tile.y, dw: tile.w, dh: tile.h };
+}
+
+/** Доля площади картинки, которая будет обрезана при помещении в рамку формата ratio. */
+export function cropShare(iw, ih, ratio) {
+  const ir = iw / ih;
+  return ir > ratio ? 1 - ratio / ir : 1 - ir / ratio;
 }
 
 /**
@@ -67,8 +74,8 @@ export function drawImageStimulus(canvas, stimulus, imgOf, layout) {
   const boxes = [];
   for (const cell of stimulus.layout) {
     const img = imgOf(cell.itemId);
-    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-    const f = fitImage(iw, ih, tiles[cell.pos], L.fit);
+    const iw = img.naturalWidth || img.width; const ih = img.naturalHeight || img.height;
+    const f = fitImage(iw, ih, tiles[cell.pos]);
     ctx.drawImage(img, f.sx, f.sy, f.sw, f.sh, f.dx, f.dy, f.dw, f.dh);
     boxes.push({ pos: cell.pos, itemId: cell.itemId, x: f.dx, y: f.dy, w: f.dw, h: f.dh });
   }

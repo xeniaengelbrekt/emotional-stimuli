@@ -4,12 +4,85 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Стимулы</title>
-  <style>html, body { margin: 0; height: 100%; background: #050a08; }</style>
-  <script>
-    // Старые ссылки вида …/#word-gen вели на эмоциональное приложение — сохраняем их работоспособность
-    if (/^#(img-gen|img-an|word-gen|word-an)$/.test(location.hash)) location.replace('emotional/index.html' + location.hash);
-  </script>
+  <title>Стимулы и анализ движений глаз</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@300;400;500;600&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23050a08%27/%3E%3Crect x=%277%27 y=%277%27 width=%279%27 height=%279%27 fill=%27%234ade80%27/%3E%3Crect x=%2716%27 y=%2716%27 width=%279%27 height=%279%27 fill=%27none%27 stroke=%27%234ade80%27 stroke-width=%272.5%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/cognitive.css">
 </head>
-<body></body>
+<body class="on-home">
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <header class="page-header">
+    <a class="logo" href="#home" title="На главную">
+      <span class="logo-mark">▦</span>
+      <span class="logo-text">Стимулы и анализ движений глаз</span>
+    </a>
+    <div class="header-actions">
+      <a class="help-btn" id="homeBtn" href="#home" hidden>
+        <span class="help-mark">←</span>
+        <span>Главная</span>
+      </a>
+      <button class="help-btn" id="helpBtn" type="button" title="Открыть руководство">
+        <span class="help-mark">?</span>
+        <span>Помощь</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="mode-panels">
+
+      <section class="mode-panel active" id="mode-home" role="tabpanel">
+        <div class="home-tip">
+          <div class="home-tip-mark">▦</div>
+          <div class="home-tip-body">
+            <div class="home-tip-title">Стимулы для исследований движений глаз</div>
+            <p>
+              Шесть методик. Для каждой — генератор стимулов (PNG-изображения, инструкции для участника, таблицы с зонами интереса,
+              правильные ответы и подробное описание для раздела «Методы» в Word) и модуль анализа движений глаз.
+            </p>
+            <p class="home-tip-note">Все вычисления выполняются локально в браузере. Загруженные файлы никуда не передаются.</p>
+          </div>
+        </div>
+        <div id="homeMethods"></div>
+      </section>
+
+      <section class="mode-panel" id="mode-img" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-word" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-rot" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-verbal" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-diff" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-trails" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-img-an" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-word-an" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-rot-an" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-verbal-an" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-diff-an" role="tabpanel"></section>
+      <section class="mode-panel" id="mode-trails-an" role="tabpanel"></section>
+    </div>
+
+    <footer class="page-footer">
+      <span class="foot-mark">▦</span>
+      <span>Стимулы и анализ движений глаз · всё считается в браузере</span>
+    </footer>
+  </main>
+
+  <div class="modal" id="helpModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <header class="modal-head">
+        <h2 class="modal-title" id="helpTitle">Руководство</h2>
+        <button class="modal-close" type="button" data-close aria-label="Закрыть">×</button>
+      </header>
+      <nav class="modal-nav" id="helpNav"></nav>
+      <div class="modal-body" id="helpBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
 </html>

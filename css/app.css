@@ -253,3 +253,35 @@ textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3p
 .instr-preview { margin-top: 18px; max-width: 640px; }
 .instr-preview canvas { width: 100%; height: auto; display: block; border: 1px solid var(--border); border-radius: var(--radius); }
 .btn-small { align-self: flex-start; padding: 6px 12px; font-size: 11px; }
+
+/* Выбор цвета с кодом рядом */
+.color-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.color-item { display: inline-flex; align-items: center; gap: 8px; }
+.color-sep { color: var(--text-mute); }
+.hex { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); letter-spacing: 0.4px; text-transform: lowercase; }
+
+/* Что добавлять в архив */
+.archive-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--border); border-radius: var(--radius); background: rgba(74, 222, 128, 0.03); }
+.archive-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-dim); }
+.archive-note { font-family: var(--font-sans); font-size: 12px; color: var(--text-mute); }
+
+/* Главная: методика → две крупные плитки */
+.method-block { margin-top: 34px; }
+.method-title {
+  display: flex; align-items: baseline; gap: 14px; margin: 0 0 14px;
+  font-family: var(--font-serif, 'Cormorant Garamond', serif); font-weight: 500; font-size: 26px; color: var(--text);
+}
+.method-num { font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; color: var(--green); }
+.method-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.method-tile {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 92px; padding: 22px 26px; box-sizing: border-box;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  font-family: var(--font-mono); font-size: 15px; color: var(--text); text-decoration: none;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+.method-tile:hover { border-color: var(--green); transform: translateY(-1px); text-decoration: none; }
+.method-tile-arrow { color: var(--green); font-size: 20px; }
+.method-tile-dev { border-style: dashed; color: var(--text-dim); }
+.method-tile-dev .dev-badge { margin-left: 0; }
+@media (max-width: 700px) { .method-tiles { grid-template-columns: 1fr; } }

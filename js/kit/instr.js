@@ -140,6 +140,12 @@ export function mountInstructionEditor(prefix, items, getStyle) {
       area().value = texts.get(current) ?? '';
       preview();
     },
+    /** Заменить текст конкретной инструкции (например, при смене числа слов). */
+    setText(key, text) {
+      texts.set(key, text);
+      if (key === current) area().value = text;
+      preview();
+    },
     /** Вернуть исходный текст выбранной инструкции. */
     reset() { texts.set(current, defaults.get(current)); area().value = texts.get(current); preview(); },
   };

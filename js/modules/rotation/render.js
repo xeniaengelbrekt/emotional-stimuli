@@ -1,22 +1,22 @@
 /* ============================================================
    rotation/render.js — отрисовка стимула «ментальное вращение».
-   Раскладка в долях экрана повторяет презентацию автора (16:9):
-   фигура-задание сверху по центру, четыре варианта в ряд ниже,
-   под каждым — его номер; слева вверху — фиксационный крест.
+   Раскладка в долях экрана (16:9): фигура-задание сверху по центру,
+   четыре варианта в ряд ниже, под каждым — его номер.
    ============================================================ */
 
 import { makeRng } from '../../common/rng.js';
 import { equalLightnessPalette } from '../../kit/palette.js';
 import { prepareCanvas } from '../../kit/text.js';
+import { BG, FG } from '../../kit/defaults.js';
 
 export const DEFAULT_STYLE = {
   width: 1920, height: 1080,
-  cell: 0,                       // 0 — автоматически (доля ширины, как в презентации)
-  background: '#ffffff',
-  fill: '#666666',               // цвет закрашенных клеток в ч/б варианте
+  cell: 0,                       // 0 — автоматически (доля ширины)
+  background: BG,
+  fill: FG,                      // цвет закрашенных клеток в ч/б варианте
   grid: '#b7b7b7',               // цвет линий сетки
-  labelColor: '#666666',
-  fontFamily: 'Montserrat, Arial, sans-serif',
+  labelColor: FG,
+  fontFamily: 'Arial, Helvetica, sans-serif',
 };
 
 export const autoCell = (W) => Math.round(W * 0.01775);
@@ -92,18 +92,4 @@ export function drawRotationStimulus(canvas, stim, styleIn, scale = 1) {
     task: L.target,
     options: stim.options.map((o, i) => ({ pos: o.pos, op: o.op, correct: o.correct, ...L.options[i] })),
   };
-}
-
-/** Фиксационный крест «+» в левом верхнем углу (как в презентации). */
-export function drawFixation(canvas, styleIn, scale = 1) {
-  const style = { ...DEFAULT_STYLE, ...styleIn };
-  const { width: W, height: H } = style;
-  const ctx = prepareCanvas(canvas, W, H, scale, style.background);
-  const cx = W * 0.083; const cy = H * 0.127; const half = W * 0.0285;
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = Math.max(2, W * 0.0025);
-  ctx.beginPath();
-  ctx.moveTo(cx - half, cy); ctx.lineTo(cx + half, cy);
-  ctx.moveTo(cx, cy - half); ctx.lineTo(cx, cy + half);
-  ctx.stroke();
 }

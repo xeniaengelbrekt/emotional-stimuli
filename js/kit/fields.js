@@ -49,15 +49,30 @@ export const fld = {
       <div class="pair"><input type="number" id="${idA}" value="${a}" min="${o.min ?? 1}" step="1"><span>${o.sep ?? '×'}</span><input type="number" id="${idB}" value="${b}" min="${o.min ?? 1}" step="1"></div>
       ${hintHtml(o.hint)}</div>`,
 
+  /** Два цвета подряд; рядом с каждым показан код (#rrggbb), он меняется вместе с выбором. */
   colors: (idA, idB, label, a, b, o = {}) => `
     <div class="field${wideCls(o)}"><label for="${idA}">${label}</label>
-      <div class="pair"><input type="color" id="${idA}" value="${a}"><span>/</span><input type="color" id="${idB}" value="${b}"></div>
+      <div class="color-row">${colorItem(idA, a)}<span class="color-sep">/</span>${colorItem(idB, b)}</div>
       ${hintHtml(o.hint)}</div>`,
 
   color: (id, label, value, o = {}) => `
     <div class="field${wideCls(o)}"><label for="${id}">${label}</label>
-      <input type="color" id="${id}" value="${value}">${hintHtml(o.hint)}</div>`,
+      <div class="color-row">${colorItem(id, value)}</div>${hintHtml(o.hint)}</div>`,
 };
+
+const colorItem = (id, value) =>
+  `<span class="color-item"><input type="color" id="${id}" value="${value}"><code class="hex" data-for="${id}">${value}</code></span>`;
+
+// код цвета рядом с выбором обновляется для всех полей на странице
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el && el.type === 'color') {
+      const code = document.querySelector(`.hex[data-for="${el.id}"]`);
+      if (code) code.textContent = el.value;
+    }
+  });
+}
 
 export const FONTS = [
   ['Montserrat, Arial, sans-serif', 'Montserrat'],

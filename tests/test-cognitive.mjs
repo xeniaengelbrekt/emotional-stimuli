@@ -48,48 +48,83 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   const words = [];
   const L = 'АБВГДЕЖЗИКЛМНОПРСТУФХ';
   for (const c of ['neutral', 'positive', 'sad', 'threat']) {
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 80; i++) {
       const len = 4 + rng.int(6);
       const w = Array.from({ length: len }, () => L[rng.int(L.length)]).join('');
       words.push({ id: c + i, word: w, len, freq: 5 + rng.next() * 300, ratings: { neutral: 1, positive: 1, sad: 1, threat: 1, [c]: 4 + rng.next() * 2 }, category: c });
     }
   }
-  const r = generateVerbal(words, { seed: 3, colors: ['bw', 'color'], perCombo: 2, targetsPerStimulus: 2 });
-  ok(r.stimuli.length === 2 * 4 * 2 * 2, `филворд: 2 напр. × 4 катег. × 2 × 2 цветн. = ${r.stimuli.length}`);
-  ok(new Set(r.stimuli.map((s) => s.name)).size === r.stimuli.length, 'филворд: имена уникальны');
-  let placedOk = true; let noExtra = true; let inGrid = true;
-  for (const s of r.stimuli) {
-    for (const p of s.placements) {
-      const word = p.cells.map(([a, b]) => s.letters[a][b]).join('');
-      if (word !== p.word) placedOk = false;
-      const sameLine = p.cells.every(([a, b]) => (s.orientation === 'horizontal' ? a === p.cells[0][0] : b === p.cells[0][1]));
-      if (!sameLine) placedOk = false;
-      const occ = findOccurrences(s.letters, 10, 10, p.word);
-      if (occ.length !== 1) noExtra = false;
+  const catOf = new Map(words.map((w) => [cleanWord(w.word), w.category]));
+  const check = (r, rows = 10, cols = 10) => {
+    let placedOk = true; let noExtra = true; let inGrid = true;
+    for (const s of r.stimuli) {
+      for (const p of s.placements) {
+        const word = p.cells.map(([a, b]) => s.letters[a][b]).join('');
+        if (word !== p.word) placedOk = false;
+        const sameLine = p.cells.every(([a, b]) => (s.orientation === 'horizontal' ? a === p.cells[0][0] : b === p.cells[0][1]));
+        if (!sameLine) placedOk = false;
+        if (findOccurrences(s.letters, rows, cols, p.word).length !== 1) noExtra = false;
+      }
+      if (s.letters.length !== rows || s.letters.some((row) => row.length !== cols)) inGrid = false;
     }
-    if (s.letters.length !== 10 || s.letters.some((row) => row.length !== 10)) inGrid = false;
-  }
-  ok(placedOk, 'филворд: слова записаны в сетке в нужном направлении');
-  ok(noExtra, 'филворд: нет лишних вхождений целевых слов');
-  ok(inGrid, 'филворд: сетка 10×10');
-  // категории и совпадение длины в ряду
-  const byKey = new Map();
-  for (const s of r.stimuli.filter((x) => x.color === 'bw')) {
-    const k = `${s.orientation}-${s.slot}`;
-    byKey.set(k, [...(byKey.get(k) || []), s.targets.map((w) => w.len).join(',')]);
-  }
-  ok([...byKey.values()].every((arr) => new Set(arr).size === 1), 'филворд: слова разных категорий в ряду одной длины');
-  const bw = r.stimuli.find((s) => s.color === 'bw'); const col = r.stimuli.find((s) => s.color === 'color' && s.slot === bw.slot && s.orientation === bw.orientation && s.category === bw.category);
+    return { placedOk, noExtra, inGrid };
+  };
+  const touching = (s) => {
+    const owner = new Map();
+    s.placements.forEach((p, i) => p.cells.forEach(([a, b]) => owner.set(`${a},${b}`, [...(owner.get(`${a},${b}`) || []), i])));
+    for (const [k, v] of owner) { const [a, b] = k.split(',').map(Number); for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) { const o = owner.get(`${a + da},${b + db}`); if (o && o.some((x) => !v.includes(x))) return true; } }
+    return false;
+  };
+
+  // по умолчанию: 4 слова из четырёх категорий, 2 направления, ч/б → 2 стимула
+  const d = generateVerbal(words, { seed: 3 });
+  ok(d.stimuli.length === 2 && d.stimuli.every((s) => s.targets.length === 4), `филворд по умолчанию: 2 стимула по 4 слова (${d.stimuli.length})`);
+  ok(d.stimuli.every((s) => new Set(s.targets.map((w) => w.category)).size === 4), 'филворд: по умолчанию 4 слова из 4 разных категорий');
+  const c1 = check(d); ok(c1.placedOk && c1.noExtra && c1.inGrid, 'филворд: слова на месте, нет лишних вхождений, сетка 10×10');
+  ok(d.stimuli.every((s) => !touching(s)), 'филворд: по умолчанию слова не касаются и не пересекаются');
+  // цветность в названии комбинации: 2 цветности удваивают стимулы
+  const r = generateVerbal(words, { seed: 3, colors: ['bw', 'color'], perCombo: 2 });
+  ok(r.stimuli.length === 2 * 2 * 2, `филворд: направл. × цветн. × 2 = ${r.stimuli.length}`);
+  ok(new Set(r.stimuli.map((s) => s.name)).size === r.stimuli.length, 'филворд: имена уникальны');
+  const bw = r.stimuli.find((s) => s.color === 'bw'); const col = r.stimuli.find((s) => s.color === 'color' && s.slot === bw.slot && s.orientation === bw.orientation);
   ok(JSON.stringify(bw.letters) === JSON.stringify(col.letters), 'филворд: буквы ч/б и цветного варианта одинаковы');
+  // 8 слов: по 2 из каждой категории; число не кратное 4 округляется вверх с предупреждением
+  const e8 = generateVerbal(words, { seed: 2, targetsPerStimulus: 8, orientations: ['horizontal'], allowTouch: true });
+  ok(e8.stimuli[0].targets.length === 8 && [...new Set(e8.stimuli[0].targets.map((w) => w.category))].every((c) => e8.stimuli[0].targets.filter((w) => w.category === c).length === 2), 'филворд: 8 слов — по 2 из каждой категории');
+  const e6 = generateVerbal(words, { seed: 2, targetsPerStimulus: 6, orientations: ['horizontal'], allowTouch: true });
+  ok(e6.stimuli[0].targets.length === 8 && e6.warnings.some((w) => w.includes('кратно 4')), 'филворд: 6 слов → 8 с предупреждением о кратности 4');
+  // одна категория: любое число слов, отдельные стимулы для категорий
+  const one = generateVerbal(words, { seed: 5, composition: 'one', targetsPerStimulus: 3, orientations: ['horizontal'], perCombo: 2 });
+  ok(one.stimuli.length === 4 * 2 && one.stimuli.every((s) => s.targets.length === 3 && new Set(s.targets.map((w) => w.category)).size === 1 && s.targets[0].category === s.category), 'филворд: из одной категории — 4 категории × 2 стимула по 3 слова');
+  // без категорий
+  const nc = generateVerbal(words, { seed: 5, useCategory: false, targetsPerStimulus: 3, orientations: ['vertical'] });
+  ok(nc.stimuli.length === 1 && nc.stimuli[0].targets.length === 3, 'филворд: без учёта категорий — любое число слов');
+  // повторы слов
+  const used = (rr) => rr.stimuli.flatMap((s) => s.targets.map((w) => w.id));
+  const small = words.filter((w) => w.id.endsWith('0') || w.id.endsWith('1') || w.id.endsWith('2'));      // по ~6 слов в категории (id вида c0, c10, c20…)
+  const noRep = generateVerbal(words, { seed: 6, perCombo: 90, orientations: ['horizontal'] });
+  ok(new Set(used(noRep)).size === used(noRep).length, 'филворд: без повторов все слова разные');
+  ok(noRep.stimuli.length < 90 && noRep.warnings.some((w) => w.includes('Слов не хватает')), `филворд: без повторов слов не хватает → предупреждение (${noRep.stimuli.length} из 90)`);
+  const rep = generateVerbal(words, { seed: 6, perCombo: 30, orientations: ['horizontal'], allowRepeats: true });
+  ok(rep.stimuli.length === 30 && rep.stimuli.every((s) => new Set(s.targets.map((w) => w.id)).size === s.targets.length), 'филворд: с повторами — 30 стимулов, внутри стимула слова разные');
+  // пересечения и касания
+  const touch = generateVerbal(words, { seed: 8, perCombo: 4, orientations: ['horizontal'], allowTouch: true, allowOverlap: false });
+  ok(touch.stimuli.length === 4 && check(touch).placedOk && check(touch).noExtra, 'филворд: касание разрешено — стимулы собраны');
+  const ov = generateVerbal(words, { seed: 8, perCombo: 6, orientations: ['vertical'], allowTouch: true, allowOverlap: true });
+  ok(check(ov).placedOk && check(ov).noExtra, 'филворд: пересечение разрешено — слова на месте, лишних вхождений нет');
+  // слова не помещаются → предупреждение, а не ошибка
+  const tight = generateVerbal(words, { seed: 1, rows: 6, cols: 6, targetsPerStimulus: 8, orientations: ['horizontal'] });
+  ok(tight.stimuli.length === 0 && tight.warnings.some((w) => w.includes('не помещаются') || w.includes('Не удалось')), 'филворд: не помещаются в сетку 6×6 → предупреждение');
   // зоны
-  const one = generateVerbal(words, { seed: 9, perCombo: 9, orientations: ['horizontal'], useCategory: false });
+  const zonesRun = generateVerbal(words, { seed: 9, perCombo: 9, orientations: ['horizontal'], useCategory: false, targetsPerStimulus: 1, allowRepeats: true });
   const zones = Array(9).fill(0);
-  for (const s of one.stimuli) { const m = s.placements[0].cells[Math.floor(s.placements[0].cells.length / 2)]; zones[Math.min(2, Math.floor(m[0] / 10 * 3)) * 3 + Math.min(2, Math.floor(m[1] / 10 * 3))]++; }
+  for (const s of zonesRun.stimuli) { const m = s.placements[0].cells[Math.floor(s.placements[0].cells.length / 2)]; zones[Math.min(2, Math.floor(m[0] / 10 * 3)) * 3 + Math.min(2, Math.floor(m[1] / 10 * 3))]++; }
   ok(Math.max(...zones) - Math.min(...zones) <= 2, `филворд: целевые слова по зонам ${zones}`);
   const nb = generateVerbal(words, { seed: 4, allowBorder: false, perCombo: 3 });
   ok(nb.stimuli.every((s) => s.placements.every((p) => p.cells.every(([a, b]) => a > 0 && b > 0 && a < 9 && b < 9))), 'филворд: без касания внешних стен');
   const lo = generateVerbal(words, { seed: 4, distractors: 'letters' });
   ok(lo.stimuli.every((s) => s.letters.every((row) => row.every((ch) => /\p{L}/u.test(ch)))), 'филворд: только буквы');
+  void catOf; void small;
 }
 
 /* ---------- различия ---------- */
@@ -117,6 +152,29 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   ok(names.size === r.series.length * 6, 'различия: имена уникальны');
   const g = r.series.find((s) => s.arrangement === 'grid' && s.N === 6);
   ok(new Set(g.positions.map((p) => Math.round(p.y))).size === 2, 'различия: 6 объектов по сетке — 2 строки');
+}
+
+
+/* ---------- различия: перемешивание ---------- */
+{
+  const r = generateDiff({ seed: 5, shuffle: true, counts: [6], objectTypes: ['letters'], arrangements: ['random'], frames: 8 });
+  let good = true; let moved = false;
+  for (const s of r.series) {
+    s.frames.forEach((fr, i) => {
+      if (new Set(fr.values).size !== s.N) good = false;
+      if (i > 0) {
+        const prev = s.frames[i - 1].values;
+        const newOnes = fr.values.filter((v) => !prev.includes(v));
+        if (newOnes.length !== 1 || fr.values[fr.changed] !== newOnes[0]) good = false;
+        if (fr.values.some((v, k) => prev[k] !== v && prev.includes(v))) moved = true;
+        if (new Set(fr.values.filter((v) => prev.includes(v))).size !== s.N - 1) good = false;
+      }
+    });
+  }
+  ok(good, 'различия с перемешиванием: на каждом экране ровно один новый объект, и changed указывает на него');
+  ok(moved, 'различия с перемешиванием: старые объекты меняются местами');
+  const plain = generateDiff({ seed: 5, counts: [6], objectTypes: ['letters'], arrangements: ['grid'] });
+  ok(plain.series[0].frames.every((fr, i, a) => i === 0 || fr.values.every((v, k) => k === fr.changed || v === a[i - 1].values[k])), 'различия без перемешивания: места объектов не меняются');
 }
 
 /* ---------- траектории ---------- */
@@ -147,6 +205,18 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   ok(Math.max(...gaps) - Math.min(...gaps) > 30, 'траектории: «разное» расстояние действительно неравномерное');
   const rec = layoutTrail({ n: 15, rows: 3, arrangement: 'straight', distractor: 'recolor', spacing: 'fixed', dCount: 2 }, { width: 1920, height: 1080 }, makeRng(3));
   ok(rec.items.filter((i) => i.kind === 'recolored').length === 2 && rec.items.every((i) => i.text !== ''), 'траектории: число другого цвета остаётся числом');
+}
+
+{
+  const base = { n: 15, rows: 3, arrangement: 'straight', distractor: 'none', spacing: 'fixed', dCount: 0 };
+  const rowsY = (l) => [1, 2, 3].map((r) => l.items.find((i) => i.row === r).y);
+  const auto = layoutTrail(base, { width: 1920, height: 1080 }, makeRng(1));
+  const manual = layoutTrail({ ...base, rowStep: 150 }, { width: 1920, height: 1080 }, makeRng(1));
+  const ya = rowsY(auto); const ym = rowsY(manual);
+  ok(Math.abs((ya[1] - ya[0]) - 1080 * 0.64 / 3) < 1e-6, 'траектории: автоматическое расстояние между строками = высота рабочей области / число строк');
+  ok(Math.abs((ym[1] - ym[0]) - 150) < 1e-6 && Math.abs((ym[2] - ym[1]) - 150) < 1e-6, 'траектории: расстояние между строками задаётся в пикселях');
+  ok(Math.abs((ym[0] + ym[2]) / 2 - 1080 * 0.5) < 1e-6, 'траектории: блок строк центрируется по экрану');
+  ok(manual.rowStep === 150 && buildRows({ rowStep: 120 }).every((r) => r.rowStep === 120), 'траектории: rowStep передаётся из общих настроек');
 }
 
 process.exit(fails ? 1 : 0);

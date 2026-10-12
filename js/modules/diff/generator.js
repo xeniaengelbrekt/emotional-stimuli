@@ -6,8 +6,11 @@
    объект меняется — на него нужно нажать (кадров в серии по
    умолчанию 6, то есть 5 раз надо найти различие).
    Объекты на экране всегда разные (без повторов); один и тот же
-   объект не меняется два раза подряд, а места меняются по кругу,
-   пока не будут использованы все.
+   объект не меняется два раза подряд, а изменяемые объекты идут по
+   кругу, пока не будут использованы все.
+   Необязательно (shuffle): на каждом экране объекты перемешиваются —
+   меняются местами, и изменившийся объект приходится искать не по
+   месту, а по тому, что он новый.
 
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
@@ -38,6 +41,7 @@ export const DEFAULTS = {
   width: 1920, height: 1080,
   fontSize: 90,
   step: 0,                      // шаг сетки, пикс.; 0 — автоматически
+  shuffle: false,               // перемешивать объекты на каждом экране серии
   seed: 1,
 };
 
@@ -106,7 +110,11 @@ export function makeSeries(rng, { type, arrangement, N, frames, ...opts }) {
   if (values.length < N + 1) throw new Error(`Для ${N} объектов нужно не меньше ${N + 1} разных значений (сейчас ${values.length})`);
   const positions = makePositions(rng, N, arrangement, o);
   let current = rng.shuffle(values).slice(0, N);
-  const frameList = [{ index: 0, values: current.slice(), changed: null }];
+  const ident = [...Array(N).keys()];
+  // perm[i] — какой по порядку объект стоит на месте i (без перемешивания — тождественная перестановка)
+  let perm = o.shuffle ? rng.shuffle(ident) : ident;
+  const shown = (cur, p) => p.map((k) => cur[k]);
+  const frameList = [{ index: 0, values: shown(current, perm), changed: null, perm: perm.slice() }];
   const changes = [];
   const useCount = new Array(N).fill(0);
   let prev = -1;
@@ -121,8 +129,10 @@ export function makeSeries(rng, { type, arrangement, N, frames, ...opts }) {
     current[idx] = to;
     useCount[idx]++;
     prev = idx;
-    frameList.push({ index: f, values: current.slice(), changed: idx });
-    changes.push({ frame: f, index: idx, from, to });
+    perm = o.shuffle ? rng.shuffle(ident) : ident;
+    const place = perm.indexOf(idx);                  // место, на котором теперь стоит изменившийся объект
+    frameList.push({ index: f, values: shown(current, perm), changed: place, perm: perm.slice() });
+    changes.push({ frame: f, index: place, from, to });
   }
   return { positions, frames: frameList, changes };
 }

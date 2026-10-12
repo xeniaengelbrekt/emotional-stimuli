@@ -5,10 +5,17 @@
    или по вертикали (слева направо / сверху вниз). Все остальные клетки
    заполняются случайными буквами или буквами и цифрами.
 
-   • Стимулов — по числу сочетаний «категория слова × направление»
-     (× заданное число повторов); категории — те же 4 эмоциональные.
+   • Состав целевых слов в стимуле: из четырёх эмоциональных категорий
+     поровну (по умолчанию 4 слова — по одному из каждой) или из одной
+     категории (для каждой категории — свои стимулы); можно не учитывать
+     категории вовсе. При учёте категорий и составе «из четырёх» число
+     слов всегда кратно 4.
    • Слова разных категорий в одном «ряду» подбираются максимально
      похожими по длине, частотности и силе оценки (оценка своей шкалы).
+   • Слова не повторяются (по умолчанию) или могут повторяться между
+     стимулами, но не внутри одного стимула.
+   • Слова могут (или не могут) пересекаться и касаться друг друга.
+     Если слова не помещаются, стимул пропускается и выдаётся предупреждение.
    • Положение целевых слов выравнивается по 9 зонам сетки (каждое слово
      ставится в наименее занятую из зон, куда оно помещается).
    • В сетке нет «лишних» вхождений целевых слов (в том числе задом
@@ -41,19 +48,28 @@ export const ALPHABETS = {
 };
 const DIGITS = '0123456789';
 
+export const COMPOSITIONS = {
+  four: { ru: 'Из четырёх эмоциональных категорий поровну', short: 'mix4' },
+  one:  { ru: 'Из одной категории (для каждой категории — свои стимулы)', short: '' },
+};
+
 export const DEFAULTS = {
   useCategory: true,
+  composition: 'four',
   matchLength: true,
   matchFreq: true,
   matchRating: true,
   perCombo: 1,
   orientations: ['horizontal', 'vertical'],
   colors: ['bw'],
-  targetsPerStimulus: 1,
+  targetsPerStimulus: 4,
   rows: 10,
   cols: 10,
   distractors: 'letters-digits',
   allowBorder: true,
+  allowOverlap: false,      // слова могут иметь общие клетки (общие буквы)
+  allowTouch: false,        // слова могут стоять в соседних клетках (в том числе по диагонали)
+  allowRepeats: false,      // одно и то же слово может встречаться в разных стимулах
   seed: 1,
 };
 
@@ -68,6 +84,31 @@ export function pickAlphabet(words) {
 }
 
 export const logFreq = (f) => Math.log10(Math.max(f, 0.001));
+
+/**
+ * Нормализует настройки состава: при учёте категорий и составе «из четырёх» число слов
+ * округляется вверх до кратного 4. Возвращает { o, notes }.
+ */
+export function normalizeOptions(opts = {}) {
+  const o = { ...DEFAULTS, ...opts };
+  const notes = [];
+  o.targetsPerStimulus = Math.max(1, Math.round(o.targetsPerStimulus));
+  if (o.useCategory && o.composition === 'four' && o.targetsPerStimulus % 4 !== 0) {
+    const fixed = Math.ceil(o.targetsPerStimulus / 4) * 4;
+    notes.push(`При составе «из четырёх категорий» число слов должно быть кратно 4: вместо ${o.targetsPerStimulus} используется ${fixed}.`);
+    o.targetsPerStimulus = fixed;
+  }
+  return { o, notes };
+}
+
+/** Сколько «рядов» (по слову на категорию) нужно на один стимул и сколько стимулов-блоков. */
+export function planOf(o) {
+  const O = o.orientations.length;
+  const k = o.targetsPerStimulus;
+  if (o.useCategory && o.composition === 'four') return { slots: O * o.perCombo, rowsPerSlot: k / 4, perCat: 1, mode: 'four' };
+  if (o.useCategory) return { slots: O * o.perCombo, rowsPerSlot: k, perCat: 4, mode: 'one' };
+  return { slots: O * o.perCombo, rowsPerSlot: k, perCat: 1, mode: 'any' };
+}
 
 /* ---------------- подбор целевых слов ---------------- */
 
@@ -93,48 +134,65 @@ function zFeatures(words, o) {
   };
 }
 
+/** Наибольшая длина слова, которое вообще может поместиться в сетку. */
+export const maxWordLength = (o) => Math.min(o.rows, o.cols) - (o.allowBorder ? 0 : 2);
+
 /**
- * Подбирает G «рядов»: по одному слову каждой категории, максимально близких
- * по длине / частотности / оценке. Возвращает { groups: [{cat: word}], warnings }.
+ * Подбирает блоки «рядов»: ряд — по одному слову каждой категории, максимально близких
+ * по длине / частотности / оценке. В блоке rowsPerBlock рядов; слова в блоке не повторяются.
+ * Без повторов слово используется один раз за весь набор; с повторами — берутся наименее
+ * использованные. Возвращает { blocks: [[{cat: word}, …]], warnings }.
  */
-export function matchGroups(words, G, o, rng) {
+export function matchBlocks(words, nBlocks, rowsPerBlock, o, rng) {
   const warnings = [];
-  const maxLen = Math.min(o.rows, o.cols) - (o.allowBorder ? 0 : 2);
+  const maxLen = maxWordLength(o);
   const eligible = words.filter((w) => w.category && w.len <= maxLen && w.len >= 2);
   if (words.length && eligible.length < words.filter((w) => w.category).length) {
     warnings.push(`Слова длиннее ${maxLen} букв не помещаются в сетку ${o.cols}×${o.rows} и не используются.`);
   }
   const cost = zFeatures(eligible, o);
   const cats = o.useCategory ? EMOTION_KEYS : ['any'];
-  const pools = Object.fromEntries(cats.map((c) => [c, rng.shuffle(eligible.filter((w) => c === 'any' || w.category === c))]));
-  const groups = [];
-  for (let g = 0; g < G; g++) {
-    const sizes = cats.map((c) => pools[c].length);
-    if (Math.min(...sizes) === 0) break;
-    if (cats.length === 1) {
-      groups.push({ any: pools.any.shift() });
-      continue;
-    }
-    const anchorCat = cats[sizes.indexOf(Math.min(...sizes))];
-    let best = null;
-    for (const a of pools[anchorCat]) {
-      const pick = { [anchorCat]: a };
-      let total = 0;
-      for (const c of cats) {
-        if (c === anchorCat) continue;
-        let bw = null; let bc = Infinity;
-        for (const w of pools[c]) { const k = cost(a, w); if (k < bc) { bc = k; bw = w; } }
-        pick[c] = bw; total += bc;
+  const usage = new Map(eligible.map((w) => [w.id, 0]));
+  const shuffled = Object.fromEntries(cats.map((c) => [c, rng.shuffle(eligible.filter((w) => c === 'any' || w.category === c))]));
+  const blocks = [];
+  let short = false;
+  for (let b = 0; b < nBlocks && !short; b++) {
+    const inBlock = new Set();
+    const rows = [];
+    for (let r = 0; r < rowsPerBlock; r++) {
+      const avail = Object.fromEntries(cats.map((c) => [c, shuffled[c].filter((w) =>
+        !inBlock.has(w.id) && (o.allowRepeats || usage.get(w.id) === 0))]));
+      if (cats.some((c) => !avail[c].length)) { short = true; break; }
+      let pick;
+      if (cats.length === 1) {
+        const least = Math.min(...avail.any.map((w) => usage.get(w.id)));
+        pick = { any: avail.any.find((w) => usage.get(w.id) === least) };
+      } else {
+        const anchorCat = cats.reduce((best, c) => (avail[c].length < avail[best].length ? c : best), cats[0]);
+        let best = null;
+        for (const a of avail[anchorCat]) {
+          const cand = { [anchorCat]: a };
+          let total = 5 * usage.get(a.id);
+          for (const c of cats) {
+            if (c === anchorCat) continue;
+            let bw = null; let bc = Infinity;
+            for (const w of avail[c]) { const k = cost(a, w) + 5 * usage.get(w.id); if (k < bc) { bc = k; bw = w; } }
+            cand[c] = bw; total += bc;
+          }
+          if (!best || total < best.total) best = { total, cand };
+        }
+        pick = best.cand;
       }
-      if (!best || total < best.total) best = { total, pick };
+      for (const w of Object.values(pick)) { inBlock.add(w.id); usage.set(w.id, usage.get(w.id) + 1); }
+      rows.push(pick);
     }
-    for (const c of cats) pools[c].splice(pools[c].indexOf(best.pick[c]), 1);
-    groups.push(best.pick);
+    if (rows.length === rowsPerBlock) blocks.push(rows);
   }
-  if (groups.length < G) {
-    warnings.push(`Слов не хватает: нужно рядов по ${G}, подобрано ${groups.length}. Загрузите больше слов, уменьшите число стимулов или число целевых слов.`);
+  if (blocks.length < nBlocks) {
+    warnings.push(`Слов не хватает: нужно блоков по ${rowsPerBlock} слов${rowsPerBlock === 1 ? 'у' : ''} в категории — ${nBlocks}, подобрано ${blocks.length}. ` +
+      (o.allowRepeats ? 'В одной из категорий слов меньше, чем нужно для одного стимула.' : 'Слова закончились: разрешите повторы слов, загрузите больше слов или уменьшите число стимулов.'));
   }
-  return { groups, warnings };
+  return { blocks, warnings };
 }
 
 /* ---------------- построение сетки ---------------- */
@@ -159,26 +217,55 @@ export function findOccurrences(letters, rows, cols, word) {
   return out;
 }
 
-export function buildGrid(rng, { rows, cols, words, orientation, allowBorder, alphabet, distractors, zoneUse = Array(9).fill(0) }) {
+export class PlacementError extends Error {}
+
+/** Одна попытка расстановки; бросает PlacementError, если слово некуда поставить. */
+function tryBuildGrid(rng, { rows, cols, words, orientation, allowBorder, allowOverlap, allowTouch, alphabet, distractors, zoneUse }) {
   const rlo = allowBorder ? 0 : 1; const rhi = rows - 1 - rlo;
   const clo = allowBorder ? 0 : 1; const chi = cols - 1 - clo;
-  const used = new Set();
+  const owner = new Map();                 // "r,c" → индексы слов
+  const letterAt = new Map();
   const placements = [];
-  const order = words.map((w, i) => i);
+  const horiz = orientation === 'horizontal';
+  // длинные слова ставим первыми: им труднее всего найти место
+  const order = words.map((w, i) => i).sort((a, b) => words[b].length - words[a].length || rng.next() - 0.5);
+  const key = (r, c) => `${r},${c}`;
+
   for (const i of order) {
     const word = words[i];
     const L = word.length;
     const cand = [];
-    const horiz = orientation === 'horizontal';
     for (let r = rlo; r <= (horiz ? rhi : rhi - L + 1); r++) {
       for (let c = clo; c <= (horiz ? chi - L + 1 : chi); c++) {
         const cells = Array.from({ length: L }, (_, k) => (horiz ? [r, c + k] : [r + k, c]));
-        if (cells.some(([a, b]) => used.has(`${a},${b}`))) continue;
-        cand.push(cells);
+        const overlapped = new Set();
+        let bad = false;
+        let shared = 0;
+        cells.forEach(([a, b], k) => {
+          const o = owner.get(key(a, b));
+          if (o) {
+            if (!allowOverlap || letterAt.get(key(a, b)) !== word[k]) bad = true;
+            else { shared++; o.forEach((x) => overlapped.add(x)); }
+          }
+        });
+        if (bad || shared === L) continue;                       // слово целиком внутри уже стоящих
+        if (!allowTouch) {
+          const own = new Set(cells.map(([a, b]) => key(a, b)));
+          for (const [a, b] of cells) {
+            for (let da = -1; da <= 1 && !bad; da++) for (let db = -1; db <= 1; db++) {
+              const kk = key(a + da, b + db);
+              if (own.has(kk)) continue;
+              const o = owner.get(kk);
+              if (o && ![...o].every((x) => overlapped.has(x))) { bad = true; break; }
+            }
+            if (bad) break;
+          }
+        }
+        if (!bad) cand.push(cells);
       }
     }
-    if (!cand.length) throw new Error(`Слово «${word}» не удаётся разместить в сетке ${cols}×${rows}`);
-    // положение выравниваем по 9 зонам: берём наименее занятую из зон, куда слово можно поставить
+    if (!cand.length) throw new PlacementError(`слово «${word}» не помещается в сетку ${cols}×${rows} вместе с остальными`);
+    // положение выравниваем по 9 зонам: наименее занятая из зон, куда слово можно поставить
     const zoneOfCells = (cells) => { const mid = cells[Math.floor(cells.length / 2)]; return zoneOf(mid[0], mid[1], rows, cols); };
     const reachable = [...new Set(cand.map(zoneOfCells))];
     const least = Math.min(...reachable.map((z) => zoneUse[z]));
@@ -187,12 +274,17 @@ export function buildGrid(rng, { rows, cols, words, orientation, allowBorder, al
     const pool = cand.filter((cells) => zoneOfCells(cells) === zone);
     const cells = pool[rng.int(pool.length)];
     zoneUse[zone]++;
-    cells.forEach(([a, b]) => used.add(`${a},${b}`));
-    placements.push({ word, orientation, cells });
+    cells.forEach(([a, b], k) => {
+      const kk = key(a, b);
+      owner.set(kk, [...(owner.get(kk) || []), i]);
+      letterAt.set(kk, word[k]);
+    });
+    placements[i] = { word, orientation, cells };
   }
-  const symbols = alphabet + (distractors === 'letters-digits' ? DIGITS : '');
+  const symbols = alphabet + (distractors === 'letters-digits' ? '0123456789' : '');
   const letters = Array.from({ length: rows }, () => new Array(cols).fill(null));
   for (const p of placements) p.cells.forEach(([r, c], k) => { letters[r][c] = p.word[k]; });
+  const used = new Set(owner.keys());
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (!letters[r][c]) letters[r][c] = symbols[rng.int(symbols.length)];
 
   // никаких «лишних» вхождений целевых слов
@@ -202,7 +294,7 @@ export function buildGrid(rng, { rows, cols, words, orientation, allowBorder, al
       for (const occ of findOccurrences(letters, rows, cols, p.word)) {
         const same = !occ.reversed && occ.cells.every(([r, c], k) => p.cells[k][0] === r && p.cells[k][1] === c);
         if (same) continue;
-        const free = occ.cells.filter(([r, c]) => !used.has(`${r},${c}`));
+        const free = occ.cells.filter(([r, c]) => !used.has(key(r, c)));
         if (!free.length) continue;
         const [r, c] = free[rng.int(free.length)];
         letters[r][c] = symbols[rng.int(symbols.length)];
@@ -211,7 +303,63 @@ export function buildGrid(rng, { rows, cols, words, orientation, allowBorder, al
     }
     if (!dirty) break;
   }
+  // проверка: каждое слово встречается ровно один раз (в том числе слово не «спрятано» внутри другого)
+  for (const p of placements) {
+    const occ = findOccurrences(letters, rows, cols, p.word);
+    if (occ.length !== 1) throw new PlacementError(`слово «${p.word}» оказалось в сетке несколько раз`);
+  }
   return { letters, placements };
+}
+
+export function buildGrid(rng, opts) {
+  const base = { allowBorder: true, allowOverlap: false, allowTouch: true, zoneUse: Array(9).fill(0), ...opts };
+  let lastErr = null;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const zoneUse = base.zoneUse.slice();
+    try {
+      const res = tryBuildGrid(rng, { ...base, zoneUse });
+      for (let z = 0; z < 9; z++) base.zoneUse[z] = zoneUse[z];
+      return res;
+    } catch (e) {
+      if (!(e instanceof PlacementError)) throw e;
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Проверка «поместятся ли слова»: пробуем расставить самые длинные слова из нужного состава.
+ * Возвращает { ok, message?, tried }.
+ */
+export function checkFit(words, optsIn) {
+  const { o } = normalizeOptions(optsIn);
+  const maxLen = maxWordLength(o);
+  const eligible = words.filter((w) => w.category && w.len >= 2 && w.len <= maxLen);
+  if (!eligible.length) return { ok: false, message: `Нет слов подходящей длины (от 2 до ${maxLen} букв).`, tried: 0 };
+  const plan = planOf(o);
+  const k = o.targetsPerStimulus;
+  const cats = o.useCategory ? EMOTION_KEYS : ['any'];
+  let longest = [];
+  if (plan.mode === 'four') {
+    for (const c of cats) longest.push(...eligible.filter((w) => w.category === c).sort((a, b) => b.len - a.len).slice(0, k / 4));
+  } else if (plan.mode === 'one') {
+    // для каждой категории отдельно — берём худший случай
+    longest = cats.map((c) => eligible.filter((w) => w.category === c).sort((a, b) => b.len - a.len).slice(0, k)).sort((a, b) => b.reduce((s, w) => s + w.len, 0) - a.reduce((s, w) => s + w.len, 0))[0] || [];
+  } else longest = eligible.slice().sort((a, b) => b.len - a.len).slice(0, k);
+  const texts = longest.map((w) => cleanWord(w.word));
+  if (texts.length < k) return { ok: true, tried: 0 };
+  for (const orientation of o.orientations) {
+    let ok = 0;
+    for (let i = 0; i < 12; i++) {
+      try { buildGrid(makeRng(900 + i), { rows: o.rows, cols: o.cols, words: texts, orientation, allowBorder: o.allowBorder, allowOverlap: o.allowOverlap, allowTouch: o.allowTouch, alphabet: ALPHABETS.ru, distractors: 'letters' }); ok++; } catch { /* не поместилось */ }
+    }
+    if (ok < 12) {
+      return { ok: false, tried: 12, message: `Самые длинные слова (${texts.join(', ')}) ${ok === 0 ? 'не помещаются' : 'помещаются не всегда'} в сетку ${o.cols}×${o.rows} (${orientation === 'horizontal' ? 'по горизонтали' : 'по вертикали'}) ` +
+        `${o.allowTouch ? '' : 'без касаний '}${o.allowOverlap ? 'с пересечениями' : 'без пересечений'}. Увеличьте сетку, уменьшите число слов или разрешите касание и пересечение.` };
+    }
+  }
+  return { ok: true, tried: 12 };
 }
 
 /** Заливка клеток цветного варианта: соседние клетки (слева и сверху) не совпадают. */
@@ -230,48 +378,64 @@ export function cellFills(rng, rows, cols, palette) {
 
 /* ---------------- весь набор ---------------- */
 
-export function generateVerbal(words, opts = {}) {
-  const o = { ...DEFAULTS, ...opts };
+export function generateVerbal(wordsIn, opts = {}) {
+  const { o, notes } = normalizeOptions(opts);
+  // без учёта категорий используются все слова, в том числе без эмоциональной категории
+  const words = o.useCategory ? wordsIn : wordsIn.map((w) => ({ ...w, category: w.category || 'any' }));
   const rng = makeRng(o.seed);
-  const warnings = [];
-  const O = o.orientations.length;
-  const k = Math.max(1, o.targetsPerStimulus);
-  const G = O * o.perCombo * k;
-  const m = matchGroups(words, G, o, rng);
-  warnings.push(...m.warnings);
+  const warnings = [...notes];
+  const plan = planOf(o);
+  const k = o.targetsPerStimulus;
   const cats = o.useCategory ? EMOTION_KEYS : ['any'];
+  const m = matchBlocks(words, plan.slots, plan.rowsPerSlot, o, rng);
+  warnings.push(...m.warnings);
   const alphabet = ALPHABETS[o.alphabet || pickAlphabet(words.map((w) => cleanWord(w.word)))];
   const zoneUse = Array(9).fill(0);
 
+  const stimCats = plan.mode === 'one' ? cats : [plan.mode === 'four' ? 'mixed4' : 'any'];
   const bases = [];
+  const failed = [];
   o.orientations.forEach((orientation, oi) => {
-    for (const cat of cats) {
-      for (let s = 0; s < o.perCombo; s++) {
-        const idx = (oi * o.perCombo + s) * k;
-        const picked = [];
-        for (let j = 0; j < k; j++) { const g = m.groups[idx + j]; if (g && g[cat]) picked.push(g[cat]); }
-        if (picked.length < k) continue;
+    for (let s = 0; s < o.perCombo; s++) {
+      const block = m.blocks[oi * o.perCombo + s];
+      if (!block) continue;
+      for (const cat of stimCats) {
+        let picked;
+        if (plan.mode === 'four') picked = block.flatMap((row) => EMOTION_KEYS.map((c) => row[c]));
+        else picked = block.map((row) => row[plan.mode === 'one' ? cat : 'any']);
+        if (picked.length < k || picked.some((w) => !w)) continue;
         const texts = picked.map((w) => cleanWord(w.word));
-        const grid = buildGrid(rng, {
-          rows: o.rows, cols: o.cols, words: texts, orientation, allowBorder: o.allowBorder,
-          alphabet, distractors: o.distractors, zoneUse,
-        });
-        bases.push({ category: cat, orientation, slot: s + 1, targets: picked, ...grid, fillSeed: rng.int(1e9) });
+        try {
+          const grid = buildGrid(rng, {
+            rows: o.rows, cols: o.cols, words: texts, orientation, allowBorder: o.allowBorder,
+            allowOverlap: o.allowOverlap, allowTouch: o.allowTouch, alphabet, distractors: o.distractors, zoneUse,
+          });
+          // порядок целевых слов в stimuli.targets = порядок размещения (как в texts)
+          bases.push({ category: cat, orientation, slot: s + 1, targets: picked, ...grid, fillSeed: rng.int(1e9) });
+        } catch (e) {
+          if (!(e instanceof PlacementError)) throw e;
+          failed.push(`${ORIENTATIONS[orientation].short} №${s + 1}${cat === 'any' || cat === 'mixed4' ? '' : ` (${cat})`}: ${e.message}`);
+        }
       }
     }
   });
+  if (failed.length) {
+    warnings.push(`Не удалось расставить слова в ${failed.length} стимулах — слова не помещаются в сетку ${o.cols}×${o.rows}` +
+      `${o.allowTouch ? '' : ' без касаний'}${o.allowOverlap ? '' : ' и без пересечений'}. ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '…' : ''}`);
+  }
 
-  const requested = o.orientations.length * cats.length * o.perCombo * o.colors.length;
+  const requested = plan.slots * stimCats.length * o.colors.length;
   const stimuli = [];
   for (const b of bases) {
     for (const color of o.colors) {
       const lens = b.targets.map((w) => w.len);
       const lenTxt = Math.min(...lens) === Math.max(...lens) ? `len${lens[0]}` : `len${Math.min(...lens)}-${Math.max(...lens)}`;
+      const catTxt = b.category === 'any' ? 'mixed' : b.category === 'mixed4' ? 'mix4' : b.category;
       stimuli.push({
         ...b, color,
-        name: `filword_${b.category === 'any' ? 'mixed' : b.category}_${ORIENTATIONS[b.orientation].short}_${COLOR_MODES[color].short}_${o.cols}x${o.rows}_${DISTRACTORS[o.distractors].short}_w${k}_${lenTxt}_${String(b.slot).padStart(2, '0')}`,
+        name: `filword_${catTxt}_${ORIENTATIONS[b.orientation].short}_${COLOR_MODES[color].short}_${o.cols}x${o.rows}_${DISTRACTORS[o.distractors].short}_w${k}_${lenTxt}_${String(b.slot).padStart(2, '0')}`,
       });
     }
   }
-  return { stimuli, requested, warnings, options: o, alphabet };
+  return { stimuli, requested, warnings, options: o, alphabet, plan };
 }

@@ -9,6 +9,7 @@ import { toCSV } from '../common/csv.js';
 import { buildZip } from '../common/zip.js';
 import { toastError, toastSuccess } from '../core/toast.js';
 import { stamp } from './text.js';
+import { buildDocx } from './docx.js';
 
 const THUMB_W = 480;
 
@@ -16,8 +17,10 @@ const THUMB_W = 480;
  * ctx: {
  *   prefix, step (номер шага), width, height, stimuli, filters?: [[key, label]],
  *   summaryHtml?, afterHtml?, warnings?: string[], built?, requested?,
- *   answerKey?: строки ключа ответов (answer_key.csv), manifests: [{ file, rows }], pngs?: [{ path, draw(canvas) }] (инструкции и т.п.),
- *   settings: object, archiveName
+ *   answerKey?: строки ключа ответов (answer_key.csv), manifests: [{ file, rows, columns?, desc? }],
+ *   pngs?: [{ path, draw(canvas), desc? }] (инструкции и т.п.),
+ *   methods?: () => блоки Word (см. docx.js) — описание для раздела «Методы»,
+ *   readmeIntro?: string, settings: object, archiveName
  * }
  */
 export function mountResults(box, ctx) {
@@ -38,9 +41,16 @@ export function mountResults(box, ctx) {
         ${filters.map(([k, t], i) => `<button class="subtab${i === 0 ? ' active' : ''}" data-f="${esc(k)}" type="button">${esc(t)}</button>`).join('')}
       </div>` : ''}
       <span class="toolbar-spacer"></span>
+      ${ctx.methods ? `<button class="btn" id="${prefix}-dl-methods" type="button">↓ Методы (Word)</button>` : ''}
       ${ctx.answerKey ? `<button class="btn" id="${prefix}-dl-key" type="button">↓ Ключ ответов (CSV)</button>` : ''}
       <button class="btn" id="${prefix}-dl-csv" type="button">↓ Таблицы CSV</button>
-      <button class="btn btn-primary" id="${prefix}-dl-zip" type="button">↓ PNG-архив (ZIP)</button>
+      <button class="btn btn-primary" id="${prefix}-dl-zip" type="button">↓ Архив (ZIP)</button>
+    </div>
+    <div class="archive-options">
+      <span class="archive-title">В архив добавить:</span>
+      ${ctx.methods ? `<label class="check"><input type="checkbox" id="${prefix}-opt-methods" checked><span>описание стимулов для раздела «Методы» (Word, <code>methods_description.docx</code>)</span></label>` : ''}
+      ${ctx.answerKey ? `<label class="check"><input type="checkbox" id="${prefix}-opt-key" checked><span>правильные ответы (<code>answer_key.csv</code>)</span></label>` : ''}
+      <span class="archive-note">Таблицы со стимулами, зонами интереса, салиентностью, яркостью, настройки и README добавляются всегда.</span>
     </div>
     <div class="busy-bar tool-gap" id="${prefix}-zip-busy" hidden><span class="busy-spinner"></span><span id="${prefix}-zip-text"></span></div>
     <div class="result-grid stim-grid" id="${prefix}-gallery"></div>
@@ -99,6 +109,9 @@ export function mountResults(box, ctx) {
     ctx.manifests.forEach((m, i) => setTimeout(() => downloadText(toCSV(m.rows, m.columns), m.file), i * 300));
   });
   $(`#${prefix}-dl-key`)?.addEventListener('click', () => downloadText(toCSV(ctx.answerKey), 'answer_key.csv'));
+  $(`#${prefix}-dl-methods`)?.addEventListener('click', () => {
+    downloadBlob(new Blob([buildDocx(ctx.methods())], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), 'methods_description.docx');
+  });
   $(`#${prefix}-dl-zip`).addEventListener('click', () => downloadArchive(ctx));
 }
 
@@ -121,19 +134,47 @@ async function downloadArchive(ctx) {
       const blob = await canvasToBlob(canvas);
       return new Uint8Array(await blob.arrayBuffer());
     };
-    for (const p of ctx.pngs || []) entries.push({ name: p.path, data: await png(p.draw) });
+    const addMethods = !!ctx.methods && $(`#${prefix}-opt-methods`)?.checked;
+    const addKey = !!ctx.answerKey && $(`#${prefix}-opt-key`)?.checked;
+    const files = [];            // [путь, описание] для README
+    for (const p of ctx.pngs || []) { entries.push({ name: p.path, data: await png(p.draw) }); files.push([p.path, p.desc || 'Экран для участника (PNG того же размера, что стимулы)']); }
     for (const st of ctx.stimuli) entries.push({ name: `stimuli/${st.name}.png`, data: await png(st.draw) });
-    if (ctx.answerKey) entries.push({ name: 'answer_key.csv', data: enc.encode('\ufeff' + toCSV(ctx.answerKey)) });
-    for (const m of ctx.manifests) entries.push({ name: m.file, data: enc.encode('﻿' + toCSV(m.rows, m.columns)) });
+    files.push([`stimuli/*.png`, `Стимулы (${ctx.stimuli.length} шт.). Имя файла составлено из характеристик стимула и уникально`]);
+    if (addKey) { entries.push({ name: 'answer_key.csv', data: enc.encode('\ufeff' + toCSV(ctx.answerKey)) }); files.push(['answer_key.csv', 'Правильные ответы по каждому стимулу']); }
+    for (const m of ctx.manifests) { entries.push({ name: m.file, data: enc.encode('\ufeff' + toCSV(m.rows, m.columns)) }); files.push([m.file, m.desc || 'Таблица']); }
     entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({ generated: new Date().toISOString(), ...ctx.settings }, null, 2)) });
+    files.push(['settings.json', 'Все параметры генерации и номер случайного набора: по ним набор воспроизводится точно']);
+    if (addMethods) { entries.push({ name: 'methods_description.docx', data: buildDocx(ctx.methods()) }); files.push(['methods_description.docx', 'Описание стимулов и процедуры их создания для раздела «Методы» (Word)']); }
+    entries.unshift({ name: 'README.txt', data: enc.encode('\ufeff' + readmeText(ctx, files)) });
     downloadBlob(new Blob([buildZip(entries)], { type: 'application/zip' }), `${ctx.archiveName}_${stamp()}.zip`);
-    toastSuccess(`Архив готов: ${ctx.stimuli.length} стимулов + инструкции и таблицы`);
+    toastSuccess(`Архив готов: ${ctx.stimuli.length} стимулов + инструкции, таблицы и описание`);
   } catch (e) {
     toastError(`Не удалось собрать архив: ${e.message}`);
   } finally {
     busy.hidden = true;
     btn.disabled = false;
   }
+}
+
+/** Текст README.txt: что лежит в архиве. */
+export function readmeText(ctx, files) {
+  const lines = [
+    `АРХИВ СТИМУЛОВ — ${ctx.title || ctx.archiveName}`,
+    `Создан: ${new Date().toLocaleString('ru-RU')}`,
+    ctx.readmeIntro || '',
+    '',
+    'ЧТО В АРХИВЕ',
+    ...files.map(([f, d]) => `  ${f}\n      ${d}`),
+    '',
+    'КАК СВЯЗАНЫ ТАБЛИЦЫ',
+    '  Во всех таблицах стимул обозначен столбцом «stimulus» — это имя PNG-файла без расширения.',
+    '  Координаты (x, y, w, h) — в пикселях стимула: x, y — левый верхний угол области, w — ширина, h — высота.',
+    '  Таблицы в CSV: разделитель «;», десятичная запятая допустима, кодировка UTF-8; открываются в Excel двойным щелчком.',
+    '',
+    'ВОСПРОИЗВОДИМОСТЬ',
+    '  Файл settings.json содержит все параметры и номер случайного набора. С теми же данными и параметрами получится тот же набор.',
+  ];
+  return lines.join('\r\n') + '\r\n';
 }
 
 /** Таблица «показатель × группа» со средним ± SD. rows: [{label, cells:[{mean,sd,n}], extra?}] */

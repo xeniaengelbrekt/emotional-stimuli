@@ -1,19 +1,36 @@
 /* ============================================================
-   words/ui.js — интерфейс «Слова · создание стимулов»
+   words/ui.js — «Поиск эмоционально окрашенных слов · создание стимулов»
    ============================================================ */
 
-import { $, $$, esc, tick, bindDropzone, downloadBlob, downloadText, canvasToBlob, readText, openViewer, fmt, meanLuminance } from '../../common/ui.js';
+import { $, $$, esc, tick, bindDropzone, downloadText, readText, fmt } from '../../common/ui.js';
 import { parseCSV, parseNum, findColumn, toCSV } from '../../common/csv.js';
-import { buildZip } from '../../common/zip.js';
 import { EMOTIONS, EMOTION_KEYS, EMOTION_BY_KEY, EMOTION_ALIASES, classifyEmotion, scaleStats } from '../../common/emotions.js';
-import { formatP } from '../../core/stats.js';
-import { toastError, toastSuccess, toastInfo } from '../../core/toast.js';
+import { formatP, meanOf, sdOf } from '../../core/stats.js';
+import { toastError, toastSuccess } from '../../core/toast.js';
+import { fld, fontField, bindFont } from '../../kit/fields.js';
+import { panelHead, stepTitle, card, grid, sep, sub, generateBar } from '../../kit/panel.js';
+import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../../kit/instr.js';
+import { mountResults, metricTable } from '../../kit/results.js';
+import { evaluateSalience, relativeAoiSalience, salienceBalance, METHOD_LABELS } from '../../kit/salience.js';
+import { meanLuminance as stimLuminance } from '../../kit/luminance.js';
+import { BG, FG, NEXT_LINE, START_LINE } from '../../kit/defaults.js';
+import * as M from '../../kit/methods.js';
 import { generateWordStimuli, checkFeasibility, balanceReport, logFreq, gridFor } from './generator.js';
 import { drawWordStimulus, fitFontSizes, applyCase, recommendFontSize } from './render.js';
-import { drawInstruction, WORDS_INSTRUCTION } from '../../common/instruction.js';
+
+let editor = null;
+const INSTRUCTION = [
+  'Вверху экрана написано слово, которое нужно найти. Ниже расположена таблица со словами.',
+  '',
+  'Найдите это слово как можно быстрее и щёлкните по нему левой кнопкой мыши.',
+  '',
+  NEXT_LINE,
+  START_LINE,
+].join('\n');
 
 const state = { rawRows: [], words: [], result: null, fontSizes: null, fileName: '', sizeTouched: false, recSize: null };
 
+const INFO_DEFAULT = 'Столбцы: слово, нейтральность, позитивность, грусть, угроза, частотность (необязательно, на миллион слов); длина считается автоматически';
 const WORD_COL = ['word', 'слово', 'stimulus', 'стимул', 'lemma', 'лемма'];
 const FREQ_COL = ['freq', 'frequency', 'частотность', 'частота', 'ipm', 'fpm', 'freqipm'];
 
@@ -185,6 +202,7 @@ function renderFeasibility() {
   gen.disabled = nCtrl + nExp === 0;
 }
 
+
 /* ---------------- генерация ---------------- */
 
 const measurer = (() => {
@@ -196,259 +214,334 @@ const measurer = (() => {
   };
 })();
 
-function generate() {
-  const opts = readOptions();
-  const layout = readLayout();
-  const area = { w: layout.width - 2 * layout.marginX, h: layout.height - Math.round(layout.height * layout.topBand) - layout.marginBottom };
-  const res = generateWordStimuli(state.words, { ...opts, layoutArea: area });
-  state.layout = layout;
-  state.fontSizes = fitFontSizes(res.stimuli, layout, measurer);
-  state.result = { ...res, options: opts, layout };
-  renderResults();
-  $('#word-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (res.warnings.length) toastError('Есть предупреждения — см. блок результатов', 6000);
-  else toastSuccess(`Собрано стимулов: ${res.built}`);
-}
-
 function invalidate() {
-  if (state.result) {
-    state.result = null;
-    $('#word-results').hidden = true;
-    $('#word-results').innerHTML = '';
-  }
-}
-
-/* ---------------- результаты ---------------- */
-
-function renderResults() {
-  const r = state.result;
   const box = $('#word-results');
-  box.hidden = false;
-  const ctrl = r.stimuli.filter((s) => s.type === 'control').length;
-  const exp = r.stimuli.length - ctrl;
-  const bal = balanceReport(r.stimuli);
-  const label = { len: 'Длина слова (букв)', logfreq: 'log10 частотности' };
-  const pTxt = (a) => (a ? `F(${a.df1}, ${a.df2}) = ${fmt(a.F, 2)}, p ${formatP(a.p).startsWith('<') ? formatP(a.p) : '= ' + formatP(a.p)}` : '—');
-  const rows = bal.filter((b) => !(b.metric === 'logfreq' && b.perCat.every((p) => !p.n))).map((b) => `
-    <tr><td>${b.scope === 'all' ? 'Все слова' : 'Целевые'} · ${label[b.metric]}</td>
-      ${b.perCat.map((p) => `<td class="num">${fmt(p.mean, 2)} <span class="muted">± ${fmt(p.sd, 2)}</span> <span class="muted">(n=${p.n})</span></td>`).join('')}
-      <td class="num ${b.anova && b.anova.p < 0.05 ? 'bad-cell' : 'ok-cell'}">${pTxt(b.anova)}</td></tr>`).join('');
-
-  // где оказались целевые слова: зоны 3×3
-  const zones = [...Array(9)].map(() => 0);
-  for (const st of r.stimuli) {
-    const row = Math.floor(st.targetCell / st.grid.cols), col = st.targetCell % st.grid.cols;
-    zones[Math.min(2, Math.floor((row / st.grid.rows) * 3)) * 3 + Math.min(2, Math.floor((col / st.grid.cols) * 3))]++;
-  }
-  const zoneTable = [0, 1, 2].map((rw) => `<tr>${[0, 1, 2].map((c) => `<td class="num">${zones[rw * 3 + c]}</td>`).join('')}</tr>`).join('');
-
-  const used = new Map();
-  for (const st of r.stimuli) for (const w of [st.target, ...st.distractors]) used.set(w.id, (used.get(w.id) || 0) + 1);
-  const repeated = [...used.values()].filter((n) => n > 1).length;
-
-  box.innerHTML = `
-    <h3 class="step-title"><span class="step-num">3</span>Результат</h3>
-    ${r.warnings.length ? `<div class="alert warn"><strong>Предупреждения</strong><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
-    <div class="alert ${r.built === r.requested ? 'ok' : 'warn'}">
-      Собрано стимулов: <strong>${r.built}</strong> из ${r.requested} (контрольных ${ctrl}, экспериментальных ${exp}).
-      Использовано слов: ${used.size}${repeated ? `, из них повторяются: ${repeated}` : ', повторов нет'}.
-    </div>
-    <div class="toolbar tool-gap">
-      <div class="subtab-bar flush" id="word-filter">
-        <button class="subtab active" data-f="all" type="button">Все</button>
-        <button class="subtab" data-f="control" type="button">Контрольные</button>
-        <button class="subtab" data-f="experimental" type="button">Экспериментальные</button>
-      </div>
-      <span class="toolbar-spacer"></span>
-      <button class="btn" id="word-dl-csv" type="button">↓ CSV</button>
-      <button class="btn btn-primary" id="word-dl-zip" type="button">↓ PNG-архив (ZIP)</button>
-    </div>
-    <div class="busy-bar tool-gap" id="word-zip-busy" hidden><span class="busy-spinner"></span><span id="word-zip-text"></span></div>
-    <div class="result-grid stim-grid" id="word-gallery"></div>
-
-    <h4 class="sub-heading">Баланс по длине и частотности между эмоциональными категориями</h4>
-    <p class="muted-p">Однофакторный ANOVA по уникальным словам: p &gt; .05 — категории не различаются. Слова одного стимула подобраны под его целевое слово, поэтому наблюдения не полностью независимы — таблица ориентировочная.</p>
-    <div class="data-table-wrap"><table class="data-table"><thead><tr><th>Показатель</th>${EMOTIONS.map((e) => `<th>${e.ru}</th>`).join('')}<th>ANOVA</th></tr></thead><tbody>${rows}</tbody></table></div>
-
-    <h4 class="sub-heading">Где стоят целевые слова</h4>
-    <p class="muted-p">Число стимулов, где целевое слово попало в каждую из 9 зон экрана (под инструкцией).</p>
-    <div class="data-table-wrap narrow zone-table"><table class="data-table"><tbody>${zoneTable}</tbody></table></div>
-  `;
-  $('#word-dl-zip').addEventListener('click', downloadArchive);
-  $('#word-dl-csv').addEventListener('click', () => {
-    const { stimuliRows, wordsRows } = buildManifests();
-    downloadText(toCSV(stimuliRows), 'stimuli.csv');
-    setTimeout(() => downloadText(toCSV(wordsRows), 'stimuli_words.csv'), 300);
-  });
-  $$('#word-filter .subtab').forEach((b) => b.addEventListener('click', () => {
-    $$('#word-filter .subtab').forEach((x) => x.classList.toggle('active', x === b));
-    renderGallery(b.dataset.f);
-  }));
-  renderGallery('all');
+  if (box && !box.hidden) { box.hidden = true; box.innerHTML = ''; }
 }
 
-const THUMB_W = 480;
+const busy = (on, text) => { $('#word-busy').hidden = !on; if (text) $('#word-busy-text').textContent = text; };
 
 function scaledLayout(L, s) {
   return { ...L, width: Math.round(L.width * s), height: Math.round(L.height * s), fontSize: L.fontSize * s,
     marginX: L.marginX * s, marginBottom: L.marginBottom * s };
 }
 
-function renderGallery(filter) {
-  const r = state.result;
-  const grid = $('#word-gallery');
-  grid.innerHTML = '';
-  const s = THUMB_W / r.layout.width;
-  const L = scaledLayout(r.layout, s);
-  for (const st of r.stimuli.filter((x) => filter === 'all' || x.type === filter)) {
-    const card = document.createElement('div');
-    card.className = 'result-card stim-card';
-    const canvas = document.createElement('canvas');
-    drawWordStimulus(canvas, st, L, state.fontSizes[st.N] * s);
-    const e = EMOTION_BY_KEY[st.category];
-    card.innerHTML = `
-      <div class="result-thumb stim-thumb"><span class="result-tag">${st.type === 'control' ? 'контроль' : 'эксперимент'}</span></div>
-      <div class="result-body">
-        <div class="result-name">${esc(st.name)}</div>
-        <div class="result-stats"><span>${st.N} слов</span>
-          <span>цель: <span class="emo-chip" style="--c:${e.color}">${e.ru}</span></span></div>
-      </div>`;
-    card.querySelector('.stim-thumb').prepend(canvas);
-    card.addEventListener('click', () => view(st));
-    grid.appendChild(card);
+async function generate() {
+  const opts = readOptions();
+  const L = readLayout();
+  const salOn = $('#word-sal-on').checked;
+  const method = $('#word-sal-method').value;
+  const btn = $('#word-generate');
+  btn.disabled = true;
+  busy(true, 'Подбор слов…');
+  try {
+    await tick();
+    const area = { w: L.width - 2 * L.marginX, h: L.height - Math.round(L.height * L.topBand) - L.marginBottom };
+    const res = generateWordStimuli(state.words, { ...opts, layoutArea: area });
+    if (!res.stimuli.length) throw new Error('Не удалось собрать ни одного стимула — проверьте таблицу «доступно / нужно слов»');
+    const fontSizes = fitFontSizes(res.stimuli, L, measurer);
+    const scratch = document.createElement('canvas');
+    const stimuli = res.stimuli.map((st) => {
+      const obj = {
+        ...st, filter: st.type, tag: st.type === 'control' ? 'контроль' : 'эксперимент',
+        draw: (canvas, scale = 1) => drawWordStimulus(canvas, st, scale === 1 ? L : scaledLayout(L, scale), fontSizes[st.N] * scale),
+      };
+      obj.boxes = drawWordStimulus(scratch, st, L, fontSizes[st.N]);
+      return obj;
+    });
+    if (salOn) {
+      let i = 0;
+      for (const st of stimuli) {
+        busy(true, `Оценка салиентности стимулов (${method.toUpperCase()}): ${++i} из ${stimuli.length}`);
+        await tick();
+        const ev = evaluateSalience(st, L.width, L.height, method);
+        st.sal = ev.metrics;
+        st.rel = st.boxes.map((b) => relativeAoiSalience(ev.map, b, L.width, L.height));
+      }
+    }
+    for (const st of stimuli) {
+      const e = EMOTION_BY_KEY[st.category];
+      st.badges = `<span>${st.N} слов</span><span>цель: <span class="emo-chip" style="--c:${e.color}">${e.ru}</span></span>`;
+      const dist = {};
+      st.distractors.forEach((w) => { dist[w.category] = (dist[w.category] || 0) + 1; });
+      const rowsT = EMOTION_KEYS.filter((c) => dist[c] || c === st.target.category).map((c) => `<tr><td><span class="emo-chip" style="--c:${EMOTION_BY_KEY[c].color}">${EMOTION_BY_KEY[c].ru}</span></td><td class="num">${(dist[c] || 0) + (c === st.target.category ? 1 : 0)}</td></tr>`).join('');
+      st.infoHtml = `<p class="muted-p">Искомое слово: <strong class="hl">${esc(st.target.word)}</strong> (${EMOTION_BY_KEY[st.target.category].ru.toLowerCase()}, ${st.target.len} букв${st.target.freq != null ? `, частотность ${st.target.freq}` : ''}); ячейка ${st.targetCell + 1} из ${st.grid.rows * st.grid.cols}.</p>
+        <div class="data-table-wrap narrow"><table class="data-table"><thead><tr><th>Категория</th><th>Слов (с искомым)</th></tr></thead><tbody>${rowsT}</tbody></table></div>`;
+    }
+    showResults(res, stimuli, opts, L, fontSizes, salOn, method);
+    toastSuccess(`Собрано стимулов: ${stimuli.length}`);
+  } catch (e) {
+    console.error(e);
+    toastError(`Не удалось сформировать стимулы: ${e.message}`, 7000);
+  } finally {
+    busy(false);
+    btn.disabled = false;
+    renderFeasibility();
   }
 }
 
-function view(st) {
-  const r = state.result;
-  const dist = {};
-  st.distractors.forEach((w) => { dist[w.category] = (dist[w.category] || 0) + 1; });
-  const rows = EMOTION_KEYS.filter((c) => dist[c] || c === st.target.category).map((c) => {
-    const n = (dist[c] || 0) + (c === st.target.category ? 1 : 0);
-    return `<tr><td><span class="emo-chip" style="--c:${EMOTION_BY_KEY[c].color}">${EMOTION_BY_KEY[c].ru}</span></td><td class="num">${n}</td></tr>`;
-  }).join('');
-  openViewer({
-    title: st.name,
-    info: `<p class="muted-p">Целевое слово: <strong class="hl">${esc(st.target.word)}</strong> (${EMOTION_BY_KEY[st.target.category].ru.toLowerCase()}, ${st.target.len} букв${st.target.freq != null ? `, частотность ${st.target.freq}` : ''}); ячейка ${st.targetCell + 1} из ${st.grid.rows * st.grid.cols}.</p>
-      <div class="data-table-wrap narrow"><table class="data-table"><thead><tr><th>Категория</th><th>Слов (с целевым)</th></tr></thead><tbody>${rows}</tbody></table></div>`,
-    canvasFactory: () => {
-      const c = document.createElement('canvas');
-      drawWordStimulus(c, st, r.layout, state.fontSizes[st.N]);
-      return c;
-    },
-  });
-}
+const f3 = (v) => (v == null || !Number.isFinite(v) ? '' : Number(v.toFixed(3)));
+const pText = (a) => (a ? `F(${a.df1}, ${a.df2}) = ${a.F.toFixed(2)}, p ${formatP(a.p).startsWith('<') ? formatP(a.p) : '= ' + formatP(a.p)}` : '—');
 
-/* ---------------- экспорт ---------------- */
-
-function manifestsFrom(boxesByStim, lumByStim = new Map()) {
-  const r = state.result;
-  const stimuliRows = [];
-  const wordsRows = [];
-  for (const st of r.stimuli) {
-    const boxes = boxesByStim.get(st.name);
-    stimuliRows.push({
+function showResults(res, stimuli, opts, L, fontSizes, salOn, method) {
+  const W = L.width; const H = L.height;
+  const wordOf = (st, b) => st.cells.find((c) => c.cell === b.cell).item;
+  const lum = new Map(stimuli.map((st) => [st.name, stimLuminance(st, W)]));
+  const rows = stimuli.map((st) => {
+    const r = {
       stimulus: st.name, type: st.type, n_words: st.N, target_category: st.category,
       distractors: st.type === 'control' ? 'same category' : (st.distractorMode === 'all' ? 'all categories' : 'other categories'),
       target_word: st.target.word, target_length: st.target.len, target_frequency: st.target.freq ?? '',
       target_cell: st.targetCell + 1, target_row: Math.floor(st.targetCell / st.grid.cols) + 1, target_col: (st.targetCell % st.grid.cols) + 1,
-      grid_rows: st.grid.rows, grid_cols: st.grid.cols, font_px: state.fontSizes[st.N],
-      width: r.layout.width, height: r.layout.height,
-      stimulus_luminance: lumByStim.get(st.name) ?? '',
+      grid_rows: st.grid.rows, grid_cols: st.grid.cols, font_px: fontSizes[st.N], width: W, height: H,
+      mean_luminance: lum.get(st.name),
       mean_length: (st.cells.reduce((a, c) => a + c.item.len, 0) / st.cells.length).toFixed(2),
-      mean_log_frequency: st.cells.every((c) => c.item.freq != null)
-        ? (st.cells.reduce((a, c) => a + logFreq(c.item.freq), 0) / st.cells.length).toFixed(3) : '',
-    });
-    for (const b of boxes) {
-      const w = st.cells.find((c) => c.cell === b.cell).item;
+      mean_log_frequency: st.cells.every((c) => c.item.freq != null) ? (st.cells.reduce((a, c) => a + logFreq(c.item.freq), 0) / st.cells.length).toFixed(3) : '',
+    };
+    if (st.sal) {
+      for (const k of ['mean', 'entropy', 'center_bias', 'spread_pct']) r[`screen_salience_${k}`] = st.sal[k];
+      r.target_salience_rel = f3(st.rel[st.boxes.findIndex((b) => b.isTarget)]);
+    }
+    return r;
+  });
+  const wordsRows = [];
+  for (const st of stimuli) {
+    st.boxes.forEach((b, k) => {
+      const w = wordOf(st, b);
       wordsRows.push({
         stimulus: st.name, type: st.type, word: w.word, is_target: b.isTarget ? 1 : 0, emotion_category: w.category,
         length: w.len, frequency: w.freq ?? '',
         rating_neutral: w.ratings.neutral, rating_positive: w.ratings.positive, rating_sad: w.ratings.sad, rating_threat: w.ratings.threat,
         cell: b.cell + 1, row: b.row, col: b.col, aoi_x: b.x, aoi_y: b.y, aoi_w: b.w, aoi_h: b.h,
+        salience_rel: st.rel ? f3(st.rel[k]) : '',
       });
-    }
+    });
   }
-  return { stimuliRows, wordsRows };
-}
-
-function buildManifests() {
-  const r = state.result;
-  const c = document.createElement('canvas');
-  const map = new Map();
-  const lum = new Map();
-  for (const st of r.stimuli) {
-    map.set(st.name, drawWordStimulus(c, st, r.layout, state.fontSizes[st.N]));
-    lum.set(st.name, meanLuminance(c));
+  const keyRows = stimuli.map((st) => {
+    const b = st.boxes.find((x) => x.isTarget);
+    return {
+      stimulus: st.name, file: `stimuli/${st.name}.png`, response_type: 'mouse_click', correct_response: st.target.word,
+      aoi_x: b.x, aoi_y: b.y, aoi_w: b.w, aoi_h: b.h,
+      meaning: 'верный ответ — щелчок мыши внутри рамки искомого слова (координаты в пикселях стимула), затем ПРОБЕЛ',
+    };
+  });
+  // использованные слова
+  const useInfo = new Map();
+  for (const st of stimuli) for (const w of [st.target, ...st.distractors]) {
+    const u = useInfo.get(w.id) || { w, total: 0, asTarget: 0 };
+    u.total++; if (w === st.target) u.asTarget++;
+    useInfo.set(w.id, u);
   }
-  return manifestsFrom(map, lum);
-}
+  const wordList = [...useInfo.values()].map(({ w, total, asTarget }) => ({
+    word: w.word, emotion_category: w.category, length: w.len, frequency: w.freq ?? '',
+    rating_neutral: w.ratings.neutral, rating_positive: w.ratings.positive, rating_sad: w.ratings.sad, rating_threat: w.ratings.threat,
+    times_used: total, times_as_target: asTarget,
+  }));
+  const repeated = wordList.filter((x) => x.times_used > 1).length;
+  const ctrl = stimuli.filter((s) => s.type === 'control').length;
+  const exp = stimuli.length - ctrl;
 
-async function downloadArchive() {
-  const r = state.result;
-  const busy = $('#word-zip-busy');
-  busy.hidden = false;
-  $('#word-dl-zip').disabled = true;
-  try {
-    const enc = new TextEncoder();
-    const entries = [];
-    const canvas = document.createElement('canvas');
-    const boxes = new Map();
-    const lumByStim = new Map();
-    let i = 0;
-    for (const st of r.stimuli) {
-      $('#word-zip-text').textContent = `Отрисовка PNG: ${++i} из ${r.stimuli.length}`;
-      await tick();
-      boxes.set(st.name, drawWordStimulus(canvas, st, r.layout, state.fontSizes[st.N]));
-      lumByStim.set(st.name, meanLuminance(canvas));
-      const blob = await canvasToBlob(canvas);
-      entries.push({ name: `stimuli/${st.name}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
-    }
-    const ins = readInstruction();
-    if (ins.on) {
-      drawInstruction(canvas, instructionOpts(r.layout, ins));
-      const blob = await canvasToBlob(canvas);
-      entries.unshift({ name: 'instruction.png', data: new Uint8Array(await blob.arrayBuffer()) });
-    }
-    const { stimuliRows, wordsRows } = manifestsFrom(boxes, lumByStim);
-    entries.push({ name: 'stimuli.csv', data: enc.encode('﻿' + toCSV(stimuliRows)) });
-    entries.push({ name: 'stimuli_words.csv', data: enc.encode('﻿' + toCSV(wordsRows)) });
-    entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({
-      experiment: 'word-search', generated: new Date().toISOString(),
-      options: r.options, layout: r.layout, fontSizes: state.fontSizes, seedUsed: r.seedUsed, wordList: state.fileName,
-      instruction: ins.on ? { title: ins.title, body: ins.body, footer: ins.footer } : null,
-    }, null, 2)) });
-    downloadBlob(new Blob([buildZip(entries)], { type: 'application/zip' }), `emotional_words_stimuli_${stamp()}.zip`);
-    toastSuccess(`Архив готов: ${r.stimuli.length} PNG + таблицы`);
-  } catch (e) {
-    toastError(`Не удалось собрать архив: ${e.message}`);
-  } finally {
-    busy.hidden = true;
-    $('#word-dl-zip').disabled = false;
+  // баланс по длине и частотности
+  const label = { len: 'Длина слова (букв)', logfreq: 'log10 частотности' };
+  const bal = balanceReport(stimuli);
+  const balRows = bal.filter((b) => !(b.metric === 'logfreq' && b.perCat.every((p) => !p.n))).map((b) => ({
+    label: `${b.scope === 'all' ? 'Все слова' : 'Целевые'} · ${label[b.metric]}`,
+    cells: b.perCat.map((p) => ({ n: p.n, mean: p.mean, sd: p.sd })), extra: pText(b.anova), extraBad: b.anova ? b.anova.p < 0.05 : false,
+  }));
+  const catHeaders = EMOTIONS.map((e) => e.ru);
+  const zones = Array(9).fill(0);
+  for (const st of stimuli) {
+    const row = Math.floor(st.targetCell / st.grid.cols); const col = st.targetCell % st.grid.cols;
+    zones[Math.min(2, Math.floor((row / st.grid.rows) * 3)) * 3 + Math.min(2, Math.floor((col / st.grid.cols) * 3))]++;
   }
+  let summary = `
+    <h4 class="sub-heading">Баланс по длине и частотности между эмоциональными категориями</h4>
+    <p class="muted-p">Однофакторный ANOVA по уникальным словам: p &gt; .05 — категории не различаются. Слова одного стимула подобраны под его целевое слово, поэтому наблюдения не полностью независимы — таблица ориентировочная.</p>
+    ${metricTable(catHeaders, balRows)}
+    <h4 class="sub-heading">Где стоят целевые слова</h4>
+    <p class="muted-p">Число стимулов, где целевое слово попало в каждую из 9 зон экрана (под надписью).</p>
+    <div class="data-table-wrap narrow zone-table"><table class="data-table"><tbody>${[0, 1, 2].map((rw) => `<tr>${[0, 1, 2].map((c) => `<td class="num">${zones[rw * 3 + c]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  let salRows = null; let typeRows = null; let typeHeaders = [];
+  if (salOn) {
+    const types = [['control', 'Контрольные'], ['experimental', 'Экспериментальные']].filter(([k]) => stimuli.some((s) => s.type === k));
+    typeHeaders = types.map((t) => t[1]);
+    typeRows = salienceBalance(stimuli, (s) => s.type, types);
+    const vals = EMOTION_KEYS.map((c) => stimuli.filter((s) => s.category === c).map((s) => s.rel[s.boxes.findIndex((b) => b.isTarget)]).filter(Number.isFinite));
+    const a = vals.every((v) => v.length > 1) ? oneWayAnovaSafe(vals) : null;
+    salRows = [{ label: 'Относительная салиентность искомого слова', cells: vals.map((v) => ({ n: v.length, mean: meanOf(v), sd: sdOf(v) })), extra: pText(a), extraBad: a ? a.p < 0.05 : false }];
+    summary += `
+      <h4 class="sub-heading">Салиентность готовых стимулов (${esc(METHOD_LABELS[method])})</h4>
+      <p class="muted-p">Оценена для всего экрана. «Относительная салиентность» — средняя салиентность рамки слова относительно среднего по экрану (1 — как в среднем). Значения для каждого слова — в <code>stimuli_words.csv</code>; их можно использовать как ковариату.</p>
+      ${metricTable(typeHeaders, typeRows)}
+      ${metricTable(catHeaders.map((h) => `Цель: ${h.toLowerCase()}`), salRows)}`;
+  }
+
+  const insText = editor.texts().main;
+  const pngs = editor.enabled() ? [{ path: 'instruction.png', desc: 'Инструкция для участника', draw: (c, s = 1) => drawInstructionText(c, { width: W, height: H, background: L.background, color: L.color, fontFamily: L.fontFamily, text: editor.texts().main, scale: s }) }] : [];
+
+  mountResults($('#word-results'), {
+    prefix: 'word', step: 3, width: W, height: H, stimuli, title: 'Поиск эмоционально окрашенных слов',
+    filters: [['control', 'Контрольные'], ['experimental', 'Экспериментальные']],
+    requested: res.requested, built: stimuli.length, warnings: res.warnings,
+    resultNote: `Контрольных ${ctrl}, экспериментальных ${exp}. Использовано слов: ${useInfo.size}${repeated ? `, из них повторяются: ${repeated}` : ', повторов нет'}.`,
+    summaryHtml: summary, pngs, answerKey: keyRows,
+    manifests: [
+      { file: 'stimuli.csv', rows, desc: 'По строке на стимул: тип, число слов, категория и характеристики искомого слова, положение в сетке, размер шрифта, средняя яркость, салиентность' },
+      { file: 'stimuli_words.csv', rows: wordsRows, desc: 'По строке на слово в стимуле: категория, длина, частотность, оценки, положение, область интереса в пикселях, относительная салиентность' },
+      { file: 'words.csv', rows: wordList, desc: 'По строке на использованное слово: категория, длина, частотность, оценки, сколько раз использовано и сколько раз как искомое' },
+    ],
+    methods: () => methodsDoc({ res, stimuli, opts, L, fontSizes, salOn, method, balRows, salRows, typeRows, typeHeaders, zones, wordList, ctrl, exp, insText: editor.texts().main, instructionOn: editor.enabled() }),
+    readmeIntro: 'Стимулы поиска слова: сверху надпись «Найдите слово: …», ниже сетка слов. Ответ — щелчок мыши по искомому слову, затем ПРОБЕЛ.',
+    archiveName: 'emotional_words_stimuli',
+    settings: { experiment: 'emotional-word-search', options: opts, layout: L, fontSizes, seedUsed: res.seedUsed, wordList: state.fileName, saliency: salOn ? method : null, instruction: editor.enabled() ? insText : null },
+  });
+  $('#word-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ---------------- инструкция ---------------- */
+import { oneWayAnova } from '../../core/stats.js';
+const oneWayAnovaSafe = (v) => oneWayAnova(v);
 
-const readInstruction = () => ({
-  on: $('#word-instr-on').checked,
-  title: $('#word-instr-title').value.trim(),
-  body: $('#word-instr-body').value,
-  footer: $('#word-instr-footer').value.trim(),
-});
+/* ---------------- описание для раздела «Методы» ---------------- */
 
-const instructionOpts = (L, ins) => ({
-  width: L.width, height: L.height, background: L.background, color: L.color,
-  fontFamily: L.fontFamily, title: ins.title, body: ins.body, footer: ins.footer,
-});
-
-function updateInstructionPreview() {
-  const L = readLayout();
-  const s = 960 / L.width;
-  drawInstruction($('#word-instr-canvas'), instructionOpts({ ...L, width: Math.round(L.width * s), height: Math.round(L.height * s) }, readInstruction()));
+function methodsDoc(c) {
+  const { H1, H2, P, TABLE, paramTable } = M;
+  const { res, stimuli, opts, L, fontSizes, salOn, method, balRows, salRows, typeRows, typeHeaders, zones, wordList, ctrl, exp } = c;
+  const catRu = (k) => EMOTION_BY_KEY[k].ru.toLowerCase();
+  const catHeaders = EMOTIONS.map((e) => e.ru);
+  const levels = [...new Set(stimuli.map((s) => s.N))].sort((a, b) => a - b);
+  const wordsPerCat = EMOTION_KEYS.map((k) => String(wordList.filter((w) => w.emotion_category === k).length));
+  const marginCat = num('#word-margin', 0);
+  const blocks = [
+    H1('Поиск эмоционально окрашенных слов: описание стимулов'),
+    P(`Набор содержит ${stimuli.length} стимулов: ${ctrl} контрольных и ${exp} экспериментальных. Каждый стимул — экран ${L.width} × ${L.height} пикс.: в верхней части написано «${L.instruction.replace('{word}', 'искомое слово')}», ниже расположена сетка слов, ` +
+      `расположенных вразброс (слова смещены от центров ячеек случайным образом). Участник должен найти искомое слово и щёлкнуть по нему левой кнопкой мыши, после чего нажать клавишу ПРОБЕЛ. ` +
+      `Уровни сложности — число слов на экране: ${levels.join(', ')}.`),
+    P('В контрольном стимуле искомое слово и все слова-дистракторы принадлежат одной эмоциональной категории. В экспериментальном искомое слово принадлежит одной категории, а дистракторы — ' +
+      `${opts.distractorMode === 'all' ? 'всем четырём категориям поровну' : 'трём другим категориям в равных долях (при числе дистракторов, не делящемся на три, «лишние» слова поочерёдно достаются разным категориям)'}.`),
+    H2('1. Исходный материал'),
+    P(`Список содержал ${state.rawRows.length} слов (файл ${state.fileName || '—'}). Эмоциональная категория слова определялась по средним оценкам (нейтральность, позитивность, грусть, угроза): категорией считалась шкала с наибольшей оценкой` +
+      `${marginCat > 0 ? `; слова, у которых главная шкала опережала вторую менее чем на ${marginCat} балла, не использовались` : '; при равных двух наибольших оценках категория не присваивалась, и слово не использовалось'}` +
+      `${$('#word-zscale').checked ? '; шкалы сравнивались в стандартизованном виде (z-оценки)' : ''}. Длина слова — число букв. ${state.rawRows.some((w) => w.freq != null) ? 'Частотность задана в списке (число словоупотреблений на миллион слов); при подборе использовался её десятичный логарифм.' : 'Частотность в списке не задана; по частотности слова не уравнивались.'}`),
+    P('Число использованных в наборе слов по категориям:'),
+    TABLE(catHeaders, [wordsPerCat]),
+    H2('2. Параметры стимулов'),
+    paramTable([
+      ['Размер стимула', `${L.width} × ${L.height} пикс.`],
+      ['Цвет фона', M.colorText(L.background)],
+      ['Цвет текста', M.colorText(L.color)],
+      ['Шрифт', L.fontFamily.split(',')[0].replace(/'/g, '')],
+      ['Размер шрифта слов', levels.map((n) => `${n} слов: ${fontSizes[n]} пикс.`).join('; '), `максимум задан ${L.fontSize} пикс.; при нехватке места шрифт уровня уменьшается одинаково для всех стимулов уровня`],
+      ['Написание букв', { asis: 'как в списке', lower: 'строчные', upper: 'прописные' }[L.textCase]],
+      ['Разброс слов внутри ячейки', `${Math.round(L.jitter * 100)}%`, '0% — строгая сетка, 100% — максимальное смещение внутри ячейки'],
+      ['Надпись над сеткой', L.instruction, 'искомое слово выводится жирным'],
+      ['Уровни сложности (число слов)', levels.join(', ')],
+      ['Контрольных на каждую эмоцию на каждом уровне', opts.controlPerCategory],
+      ['Экспериментальных на каждую эмоцию искомого слова на каждом уровне', opts.experimentalPerCategory],
+      ['Слова-дистракторы в экспериментальных стимулах', opts.distractorMode === 'all' ? 'из всех четырёх категорий поровну' : 'только из других категорий'],
+      ['Подбор слов, близких по', [opts.matchLength && 'длине', opts.matchFreq && 'частотности'].filter(Boolean).join(', ') || 'не используется'],
+      ['Повторы слов', opts.allowRepeats ? 'допускаются' : 'не допускаются'],
+      ['Номер случайного набора', `${opts.seed}${res.seedUsed != null && res.seedUsed !== opts.seed ? ` (лучший из ${opts.attempts ?? 12} вариантов подбора: ${res.seedUsed})` : ''}`],
+    ]),
+    H2('3. Подбор слов и расстановка'),
+    P('Искомые слова четырёх эмоциональных категорий подбирались «кругами»: в каждом круге по одному слову каждой категории, максимально близких друг к другу по длине и частотности и близких к типичным значениям списка (стандартизованные длина и десятичный логарифм частотности). ' +
+      'Дистракторы подбирались как ближайшие к искомому слову по тем же признакам внутри своей категории. ' +
+      `${opts.allowRepeats ? 'При разрешённых повторах использовались наименее употреблённые слова. ' : 'Каждое слово использовалось не более одного раза. '}` +
+      'Подбор повторялся несколько раз с разными порядками, выбирался вариант с наибольшим числом собранных стимулов и лучшим балансом длины и частотности между категориями.'),
+    P(`Слова размещались в ячейках сетки: размер сетки выбирался по числу слов и пропорциям области под надписью (по умолчанию ${levels.map((n) => { const g = stimuli.find((s) => s.N === n).grid; return `${n} слов — ${g.cols} × ${g.rows}`; }).join('; ')}). ` +
+      'Ячейка искомого слова выбиралась так, чтобы по набору искомые слова равномерно распределялись по ячейкам и по девяти зонам экрана (отдельно для каждой категории); остальные слова расставлялись по свободным ячейкам случайно. Каждое слово смещено от центра ячейки на случайную долю свободного места.'),
+    H2('4. Состав набора'),
+    TABLE(['Тип', 'Слов', ...catHeaders.map((h) => `Искомое: ${h.toLowerCase()}`)], [...['control', 'experimental'].flatMap((t) => levels.map((n) => [t === 'control' ? 'контроль' : 'эксперимент', String(n), ...EMOTION_KEYS.map((k) => String(stimuli.filter((s) => s.type === t && s.N === n && s.category === k).length))]))]),
+    P('Перечень стимулов (имя файла, искомое слово, его длина, ячейка):'),
+    TABLE(['Имя файла', 'Искомое слово', 'Длина', 'Ячейка'], stimuli.map((s) => [`${s.name}.png`, s.target.word, String(s.target.len), `${s.targetCell + 1} из ${s.grid.rows * s.grid.cols}`]), [5, 3, 1.2, 1.8]),
+    H2('5. Баланс по длине и частотности'),
+    P('Среднее ± стандартное отклонение по уникальным словам набора и однофакторный дисперсионный анализ (p > 0,05 — категории не различаются). Слова подбирались под искомое слово, поэтому наблюдения не полностью независимы, и таблица носит ориентировочный характер:'),
+    M.balanceTable(catHeaders, balRows),
+    P(`Положение искомых слов по девяти зонам экрана (строки сверху вниз, столбцы слева направо): ${zones.join(', ')}.`),
+  ];
+  if (salOn) {
+    blocks.push(H2('6. Салиентность'), ...M.salienceParagraphs(method));
+    blocks.push(P('Сравнение контрольных и экспериментальных стимулов:'), M.balanceTable(typeHeaders, typeRows));
+    blocks.push(P('Относительная салиентность рамки искомого слова по его эмоциональной категории (1 — как в среднем по экрану):'), M.balanceTable(catHeaders.map((h) => `Цель: ${h.toLowerCase()}`), salRows));
+  }
+  blocks.push(H2(salOn ? '7. Яркость' : '6. Яркость'), M.luminanceParagraph());
+  blocks.push(H2(salOn ? '8. Инструкция для участника' : '7. Инструкция для участника'));
+  if (c.instructionOn) blocks.push(P(`Инструкция предъявляется отдельным экраном instruction.png (того же размера и цвета, что стимулы). Текст: ${String(c.insText).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
+  else blocks.push(P('Инструкция в архив не включена.'));
+  blocks.push(H2(salOn ? '9. Ответы и области интереса' : '8. Ответы и области интереса'),
+    P('Правильный ответ — щелчок мыши внутри рамки искомого слова. Рамки (в пикселях стимула) приведены в answer_key.csv для искомых слов и в stimuli_words.csv для всех слов экрана.'),
+    M.reproducibilityParagraph(opts.seed));
+  return blocks;
 }
 
-const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+/* ---------------- инициализация ---------------- */
+
+function panelHtml() {
+  return `
+    ${panelHead('02', 'Поиск эмоционально окрашенных слов · создание стимулов', `
+      Сверху — надпись «Найдите слово: …», под ней — сетка слов, расставленных вразброс; искомое слово каждый раз в другом месте экрана.
+      Контрольный стимул: все слова одной эмоциональной категории. Экспериментальный: дистракторы из других категорий в равных долях.`)}
+
+    ${stepTitle(1, 'Список слов')}
+    <div class="dropzone" id="word-dropzone" tabindex="0">
+      <input type="file" id="word-file" accept=".csv,.tsv,.txt" hidden>
+      <div class="dropzone-inner">
+        <div class="dropzone-icon">⤓</div>
+        <p class="dropzone-text">Перетащите CSV со словами сюда</p>
+        <p class="dropzone-or">— или —</p>
+        <button class="btn btn-primary" type="button">Выбрать файл</button>
+        <p class="dropzone-hint">Слово · нейтральность · позитивность · грусть · угроза · частотность</p>
+      </div>
+    </div>
+    <div class="toolbar tool-gap">
+      <button class="btn btn-ghost" id="word-template" type="button">↓ Скачать образец таблицы</button>
+      <span class="toolbar-info" id="word-info">${INFO_DEFAULT}</span>
+      <span class="toolbar-spacer"></span>
+      <button class="btn btn-ghost" id="word-clear" type="button" disabled>⊘ Убрать все слова</button>
+    </div>
+    <div id="word-table-block" hidden><div class="data-table-wrap table-scroll tool-gap"><table class="data-table" id="word-table"></table></div></div>
+
+    ${stepTitle(2, 'Параметры')}
+    ${card(`
+      ${sub('Что создаём')}
+      ${grid(`
+        ${fld.text('word-levels', 'Уровни сложности: число слов на экране (через запятую)', '20, 30, 40')}
+        ${fld.num('word-ctrl', 'Контрольных стимулов на каждую эмоцию на каждом уровне', 1, { min: 0 })}
+        ${fld.num('word-exp', 'Экспериментальных стимулов на каждую эмоцию искомого слова на каждом уровне', 1, { min: 0 })}
+        ${fld.select('word-dmode', 'Слова-помехи (дистракторы) в экспериментальных стимулах', [['other', 'Только из других эмоций (по умолчанию)'], ['all', 'Из всех четырёх эмоций поровну']], 'other')}
+        <div class="field"><label>Подбирать слова, близкие по</label>
+          <div class="check-row">
+            <label class="check"><input type="checkbox" id="word-mlen" checked><span>длине</span></label>
+            <label class="check"><input type="checkbox" id="word-mfreq" checked><span>частотности</span></label>
+          </div></div>
+        ${fld.num('word-margin', 'Минимальный отрыв главной шкалы от второй, баллы', 0, { min: 0, step: 0.1, hint: 'Эмоция слова — шкала с наибольшей оценкой. Если отрыв от второй шкалы меньше, слово «смешанное» и не используется. 0 — не ограничивать.' })}
+        ${fld.num('word-seed', 'Номер случайного набора', 1, { hint: 'При том же номере и тех же данных получится тот же набор. Поменяйте номер, чтобы получить другой.' })}
+        ${fld.check('word-zscale', 'Сравнивать шкалы в стандартизованном виде (z-оценки)', false, { hint: 'Включите, если шкалы нельзя сравнивать напрямую, например у них разный диапазон оценок.' })}
+        ${fld.check('word-repeats', 'Разрешить использовать одно слово в нескольких стимулах', false, { hint: 'Если выключено и слов не хватает, появится предупреждение.' })}
+      `)}
+      ${sep()}
+      ${sub('Внешний вид')}
+      ${grid(`
+        ${fld.pair('word-w', 'word-h', 'Размер стимула: ширина × высота, пикс.', 1920, 1080, { min: 480 })}
+        ${fontField('word-font', 'Шрифт слов', 'Arial, Helvetica, sans-serif')}
+        <div class="field"><label for="word-size">Размер шрифта слов, пикс.</label>
+          <input type="number" id="word-size" value="40" min="10" step="1">
+          <span class="hint" id="word-size-hint">Загрузите список слов — размер подберётся по самому большому уровню сложности.</span>
+          <button class="btn btn-ghost btn-small" id="word-size-apply" type="button" hidden>Применить рекомендуемый размер</button></div>
+        ${fld.select('word-case', 'Написание букв', [['asis', 'Как в списке слов'], ['lower', 'все строчные'], ['upper', 'ВСЕ ЗАГЛАВНЫЕ']], 'asis')}
+        <div class="field"><label for="word-jitter">Степень «разброса» слов внутри ячейки</label><input type="range" id="word-jitter" min="0" max="100" value="70"></div>
+        ${fld.colors('word-bg', 'word-fg', 'Цвет фона / цвет текста', BG, FG)}
+        ${fld.text('word-instr', 'Надпись над таблицей слов ({word} — искомое слово)', 'Найдите слово: {word}', { wide: true })}
+      `)}
+      ${sep()}
+      ${sub('Салиентность')}
+      ${grid(`
+        ${fld.check('word-sal-on', 'Оценить салиентность готовых стимулов', true, { hint: 'Для каждого стимула считается карта салиентности всего экрана и относительная салиентность рамки каждого слова (ковариата для анализа движений глаз).' })}
+        ${fld.select('word-sal-method', 'Алгоритм оценки салиентности', [['ft', 'FT — рекомендуется'], ['local', 'Local Contrast — цветовой контраст'], ['dog', 'DoG — по яркости'], ['sr', 'SR — спектральный остаток (яркость)']], 'ft')}
+      `)}
+      ${instructionEditorHtml('word', { items: [{ key: 'main', label: 'Инструкция', text: INSTRUCTION }], lead: 'Сохраняется в архив отдельной картинкой <code>instruction.png</code> того же размера, что и стимулы. Проверьте, что текст соответствует вашей процедуре.' })}
+    `)}
+    ${generateBar('word')}`;
+}
 
 function downloadTemplate() {
   const rows = [
@@ -460,39 +553,38 @@ function downloadTemplate() {
   downloadText(toCSV(rows), 'words_template.csv');
 }
 
-/* ---------------- инициализация ---------------- */
-
 export function initWordsGenerator() {
+  $('#mode-word').innerHTML = panelHtml();
+  editor = mountInstructionEditor('word', [{ key: 'main', label: 'Инструкция', text: INSTRUCTION }], () => {
+    const l = readLayout();
+    return { width: l.width, height: l.height, background: l.background, color: l.color, fontFamily: l.fontFamily };
+  });
   bindDropzone($('#word-dropzone'), $('#word-file'), loadFile);
   $('#word-template').addEventListener('click', downloadTemplate);
   $('#word-clear').addEventListener('click', () => {
     state.rawRows = []; state.words = [];
-    $('#word-info').textContent = 'Столбцы: слово, нейтральность, позитивность, грусть, угроза, частотность (необязательно, на миллион слов); длина считается автоматически';
+    $('#word-info').textContent = INFO_DEFAULT;
     invalidate(); refreshWords();
   });
-  $('#word-instr-body').value = WORDS_INSTRUCTION.body;
-  $('#word-instr-title').value = WORDS_INSTRUCTION.title;
-  $('#word-instr-footer').value = WORDS_INSTRUCTION.footer;
-  $$('#mode-word-gen [id^="word-instr-"]').forEach((el) => el.addEventListener('input', updateInstructionPreview));
-  $$('#mode-word-gen .params-card input, #mode-word-gen .params-card select').forEach((el) => {
-    if (el.id.startsWith('word-instr-')) return;
+  bindFont('word-font', () => { editor.preview(); updateSizeRecommendation(); invalidate(); });
+  $$('#mode-word .params-card input, #mode-word .params-card select').forEach((el) => {
+    if (el.id.includes('-ins-') || el.id === 'word-font') return;
     el.addEventListener('change', () => {
-      updateInstructionPreview();
+      editor.preview();
       updateSizeRecommendation();
       invalidate();
       if (el.id === 'word-margin' || el.id === 'word-zscale') refreshWords(); else renderFeasibility();
     });
   });
-  $('#word-generate').addEventListener('click', generate);
-  $('#word-font').addEventListener('change', () => { $('#word-font-custom').hidden = $('#word-font').value !== 'custom'; });
-  $('#word-font-custom').addEventListener('change', () => { invalidate(); updateInstructionPreview(); updateSizeRecommendation(); });
+  $('#word-font-custom').addEventListener('change', () => { invalidate(); editor.preview(); updateSizeRecommendation(); });
   $('#word-size').addEventListener('input', () => { state.sizeTouched = true; updateSizeRecommendation(); });
   $('#word-size-apply').addEventListener('click', () => {
     state.sizeTouched = false; $('#word-size').value = state.recSize; invalidate(); updateSizeRecommendation();
   });
-  updateInstructionPreview();
+  $('#word-generate').addEventListener('click', generate);
+  editor.preview();
+  updateSizeRecommendation();
   renderFeasibility();
 }
 
-export const _state = state;
 export { gridFor, applyCase };

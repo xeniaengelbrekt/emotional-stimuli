@@ -4,11 +4,13 @@
 
 import { prepareCanvas, measureText } from '../../kit/text.js';
 import { recommendedFont } from './generator.js';
+import { BG, FG } from '../../kit/defaults.js';
+import { drawInstructionText } from '../../kit/instr.js';
 
 export const DEFAULT_STYLE = {
   width: 1920, height: 1080,
-  background: '#d9d9d9',
-  color: '#111111',
+  background: BG,
+  color: FG,
   distractorColor: '#d62728',
   fontFamily: 'Arial, Helvetica, sans-serif',
   zigzag: 0.22,
@@ -54,4 +56,31 @@ export function drawTrailStimulus(canvas, stim, styleIn, scale = 1) {
     boxes.push({ ...it, ...itemBox(s, font, it) });
   }
   return { boxes, font };
+}
+
+/**
+ * Экран оценки: текст и пять квадратов с цифрами 1–5, по которым участник щёлкает мышью.
+ * Возвращает области (в пикселях стимула).
+ */
+export function drawRatingScale(canvas, styleIn, text, scale = 1) {
+  const s = { ...DEFAULT_STYLE, ...styleIn };
+  const W = s.width; const H = s.height;
+  drawInstructionText(canvas, { width: W, height: H, background: s.background, color: s.color, fontFamily: s.fontFamily, text, scale, sizeRatio: 0.034 });
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  const side = Math.round(H * 0.1); const gap = Math.round(H * 0.045);
+  const total = 5 * side + 4 * gap;
+  const x0 = Math.round((W - total) / 2); const y0 = Math.round(H * 0.74);
+  const boxes = [];
+  ctx.lineWidth = Math.max(2, H * 0.003);
+  ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
+  ctx.font = `700 ${Math.round(side * 0.55)}px ${s.fontFamily}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < 5; i++) {
+    const x = x0 + i * (side + gap);
+    ctx.strokeRect(x, y0, side, side);
+    ctx.fillText(String(i + 1), x + side / 2, y0 + side / 2 + side * 0.03);
+    boxes.push({ value: i + 1, x, y: y0, w: side, h: side });
+  }
+  return boxes;
 }

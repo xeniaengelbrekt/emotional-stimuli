@@ -13,7 +13,9 @@ import { mountResults } from '../../kit/results.js';
 import { ensureFont } from '../../kit/text.js';
 import { meanLuminance } from '../../kit/luminance.js';
 import { DIRECTIONS, ARRANGEMENTS, SPACINGS, DISTRACTOR_KINDS, DEFAULTS, blankRow, buildRows, generateTrails, recommendedFont, distractorLabel } from './generator.js';
-import { DEFAULT_STYLE, drawTrailStimulus, fontSizeOf } from './render.js';
+import { DEFAULT_STYLE, drawTrailStimulus, fontSizeOf, drawRatingScale } from './render.js';
+import { BG, FG, START_LINE } from '../../kit/defaults.js';
+import * as M from '../../kit/methods.js';
 
 const state = { rows: [] };
 let editor = null;
@@ -34,15 +36,16 @@ const instrText = (dir, kind) => [
   'Не называйте числа вслух и ничего не нажимайте — только смотрите.',
   ...(SENTENCE[kind] ? [SENTENCE[kind]] : []),
   '',
-  'Когда закончите, нажмите ПРОБЕЛ.',
-  '',
-  'Чтобы начать, нажмите ПРОБЕЛ.',
+  'Когда закончите, нажмите **ПРОБЕЛ** — появится экран оценки.',
+  START_LINE,
 ].join('\n');
 const RATING_TEXT = [
   'Оцените, насколько хорошо вам удалось проследить числа.',
   '',
-  'Нажмите на клавиатуре цифру от **1** до **5**:',
+  'Щёлкните левой кнопкой мыши по цифре от **1** до **5**:',
   '**1** — совсем не удалось      **5** — удалось полностью',
+  '',
+  'После ответа нажмите **ПРОБЕЛ**, чтобы перейти к следующему заданию.',
 ].join('\n');
 
 const keyOf = (dir, kind) => `${dir}__${kind}`;
@@ -73,6 +76,7 @@ function readGlobal() {
     distractors: Object.keys(DISTRACTOR_KINDS).filter((k) => readChecks('tr-dist').includes(k)),
     letters: [...new Set(readStr('tr-letters').split(/[\s,;]+/).map((x) => x.trim().slice(0, 1).toLocaleUpperCase('ru')).filter(Boolean))],
     dCount: readInt('tr-dcount', 1, 1, 10),
+    rowStep: readInt('tr-rowstep', 0, 0, 1000),
     spacings: Object.keys(SPACINGS).filter((k) => readChecks('tr-spacing').includes(k)),
     perVariant: readInt('tr-per', 1, 1, 20),
     seed: readInt('tr-seed', 1),
@@ -91,6 +95,7 @@ const COLS = [
   { key: 'dCount', label: 'Сколько', type: 'num', min: 0, max: 10 },
   { key: 'spacing', label: 'Расстояние', type: 'sel', opts: SPACINGS },
   { key: 'fontSize', label: 'Шрифт, пикс. (0 — авто)', type: 'num', min: 0, max: 400 },
+  { key: 'rowStep', label: 'Расстояние между строками, пикс. (0 — авто)', type: 'num', min: 0, max: 1000 },
 ];
 
 const optionsHtml = (opts, v) => Object.entries(opts).map(([k, o]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(o.ru)}</option>`).join('');
@@ -166,10 +171,14 @@ function updatePlan() {
     const font = fontSizeOf(style, r);
     const cols = Math.ceil(r.n / r.rows);
     const slotW = (style.width * 0.84) / cols;
-    const slotH = (style.height * 0.64) / r.rows;
+    const slotH = r.rowStep > 0 ? r.rowStep : (style.height * 0.64) / r.rows;
     if (font * 1.25 > slotH * (r.arrangement === 'zigzag' ? 1 - 2 * style.zigzag * 0.6 : 1) + 1) issues.push(`Стимул ${i + 1}: шрифт ${font} пикс. слишком крупный для ${r.rows} строк${r.arrangement === 'zigzag' ? ' с зигзагом' : ''}.`);
     if (r.spacing === 'varied' && slotW * (1 - style.spread) < font * (String(r.n).length * 0.62 + 0.3)) issues.push(`Стимул ${i + 1}: при разных расстояниях числа могут сблизиться вплотную — уменьшите шрифт или разброс расстояний.`);
     if (r.rows > r.n) issues.push(`Стимул ${i + 1}: строк больше, чем чисел.`);
+    if (r.rowStep > 0) {
+      const span = (r.rows - 1) * r.rowStep + font * 1.25;
+      if (span > style.height * 0.96) issues.push(`Стимул ${i + 1}: при расстоянии между строками ${r.rowStep} пикс. строки не помещаются по высоте экрана (${Math.round(span)} из ${style.height} пикс.).`);
+    }
     if (r.distractor !== 'none' && r.dCount > r.n - 2) issues.push(`Стимул ${i + 1}: дистракторов слишком много (не должны заменять 1 и ${r.n}).`);
     if (r.distractor === 'letter' && !r.letter) issues.push(`Стимул ${i + 1}: не указана буква-дистрактор.`);
   });
@@ -211,16 +220,16 @@ async function generate() {
       st.infoHtml = `<p class="muted-p">${esc(DIRECTIONS[sp.direction].ru)}; ${esc(ARRANGEMENTS[sp.arrangement].ru.toLowerCase())}; расстояния: ${esc(SPACINGS[sp.spacing].ru.toLowerCase())}; дистрактор: ${esc(DISTRACTOR_KINDS[sp.distractor].ru.toLowerCase())}${sp.distractor !== 'none' ? ` (${sp.dCount})` : ''}.
         ${st.layout.items.filter((i) => i.isDistractor).length ? `Дистрактор вместо числа: ${st.layout.items.filter((i) => i.isDistractor).map((i) => i.value).join(', ')}.` : ''}</p>`;
       rows.push({
-        stimulus: st.name, arrangement: sp.arrangement, direction: sp.direction, spacing: sp.spacing,
+        stimulus: st.name, arrangement: sp.arrangement, direction: sp.direction, spacing: sp.spacing, row_step_px: Math.round(st.layout.rowStep),
         n_numbers: sp.n, n_rows: sp.rows, n_cols: st.layout.cols,
         distractor: sp.distractor, distractor_letter: sp.distractor === 'letter' ? sp.letter : '', n_distractors: st.layout.items.filter((i) => i.isDistractor).length,
         distractor_positions: st.layout.items.filter((i) => i.isDistractor).map((i) => i.value).join(' '),
         font_px: st.font, width: style.width, height: style.height, mean_luminance: meanLuminance(st, style.width),
       });
       keyRows.push({
-        stimulus: st.name, file: `stimuli/${st.name}.png`, response_type: 'rating_1_5', correct_response: '',
+        stimulus: st.name, file: `stimuli/${st.name}.png`, response_type: 'self_rating_mouse_click_1_5', correct_response: '',
         direction_to_trace: sp.direction, distractor_positions: st.layout.items.filter((i) => i.isDistractor).map((i) => i.value).join(' '),
-        meaning: 'ответ — самооценка клавишей 1–5 (объективного верного ответа в задании нет); зоны дистракторов — на них смотреть нельзя',
+        meaning: 'объективного верного ответа нет: по стимулу участник только прослеживает числа взглядом; затем самооценка щелчком мыши по цифре 1–5 (области — в rating_scale_aoi.csv); на дистракторы смотреть нельзя',
       });
       for (const b of st.boxes) aoi.push({
         stimulus: st.name, order: b.order + 1, kind: b.kind, text: b.text, number: b.kind === 'number' || b.kind === 'recolored' ? b.value : '',
@@ -239,13 +248,22 @@ async function generate() {
         const text = (texts[keyOf(sp.direction, sp.distractor)] ?? '').replaceAll('{n}', sp.n);
         pngs.push({ path: file, draw: (c, s = 1) => drawInstructionText(c, { width: style.width, height: style.height, background: style.background, color: style.color, fontFamily: style.fontFamily, text, scale: s }) });
       }
-      pngs.push({ path: 'rating_scale.png', draw: (c, s = 1) => drawInstructionText(c, { width: style.width, height: style.height, background: style.background, color: style.color, fontFamily: style.fontFamily, text: texts.rating, scale: s }) });
+      pngs.push({ path: 'rating_scale.png', desc: 'Экран самооценки: цифры 1–5, по которым участник щёлкает мышью (области — в rating_scale_aoi.csv)', draw: (c, s = 1) => { drawRatingScale(c, style, texts.rating, s); } });
     }
+    const ratingBoxes = drawRatingScale(document.createElement('canvas'), style, texts.rating, 0.05);
+    const ratingRows = ratingBoxes.map((b) => ({ screen: 'rating_scale.png', value: b.value, x: b.x, y: b.y, w: b.w, h: b.h }));
     mountResults($('#tr-results'), {
-      prefix: 'tr', step: 4, width: style.width, height: style.height, stimuli,
+      prefix: 'tr', step: 4, width: style.width, height: style.height, stimuli, title: 'Траектории',
       filters: Object.keys(DIRECTIONS).filter((d) => stimuli.some((s) => s.spec.direction === d)).map((d) => [d, DIRECTIONS[d].short]),
       requested: state.rows.length, built: stimuli.length, pngs,
-      answerKey: keyRows, manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoi }],
+      answerKey: keyRows,
+      manifests: [
+        { file: 'stimuli.csv', rows, desc: 'По строке на стимул: расположение, направление, расстояния, дистракторы и их положение, размер шрифта, расстояние между строками, средняя яркость' },
+        { file: 'stimuli_aoi.csv', rows: aoi, desc: 'Области интереса всех элементов стимула (числа и дистракторы) в пикселях стимула' },
+        ...(editor.enabled() ? [{ file: 'rating_scale_aoi.csv', rows: ratingRows, desc: 'Области цифр 1–5 на экране самооценки (rating_scale.png)' }] : []),
+      ],
+      methods: () => methodsDoc({ stimuli, style, seed, texts, instructionOn: editor.enabled(), global: readGlobal() }),
+      readmeIntro: 'Стимулы «Траектории»: числа в несколько строк; участник прослеживает их взглядом, затем оценивает себя щелчком мыши по цифре 1–5 и нажимает ПРОБЕЛ.',
       archiveName: 'trails_stimuli',
       settings: { experiment: 'trails-king-devick', global: readGlobal(), rows: state.rows, style, instructions: editor.enabled() ? texts : null },
     });
@@ -267,7 +285,7 @@ export function initTrails() {
   $('#mode-trails').innerHTML = `
     ${panelHead('04', 'Траектории · создание стимулов', `
       Числа от 1 до N расставлены в несколько строк. Участник прослеживает их взглядом по возрастанию или по убыванию —
-      не называя вслух и ничего не нажимая, — а затем оценивает по шкале от 1 до 5, насколько хорошо справился (цифра на клавиатуре).
+      не называя вслух и ничего не нажимая, — а затем оценивает по шкале от 1 до 5, насколько хорошо справился (щелчок мыши по цифре), и нажимает ПРОБЕЛ.
       Основной показатель — движения глаз. По умолчанию: 15 чисел в 3 строки; меняются расположение (прямая / зигзаг),
       направление (возрастание / убывание), дистрактор (нет / буква «А» вместо одного из чисел) и расстояние между числами (фиксированное / разное) — 16 стимулов.`)}
 
@@ -276,6 +294,7 @@ export function initTrails() {
       ${grid(`
         ${fld.num('tr-n', 'Сколько всего чисел', 15, { min: 3, max: 120 })}
         ${fld.num('tr-rows', 'В скольких строках', 3, { min: 1, max: 12 })}
+        ${fld.num('tr-rowstep', 'Расстояние между строками (линиями), пикс.', '', { min: 0, max: 1000, placeholder: 'авто', hint: 'Расстояние между центрами соседних строк. Пусто или 0 — подбирается автоматически по высоте экрана. У каждого стимула в таблице ниже его можно задать отдельно.' })}
         ${fld.checks('tr-dirs', 'Что должен прослеживать участник (по инструкции)', Object.entries(DIRECTIONS).map(([k, v]) => [k, v.ru, true]), { wide: true,
           hint: 'Направление влияет только на инструкцию, расположение чисел на экране остаётся прежним. Для каждого отмеченного варианта создаются свои стимулы.' })}
         ${fld.checks('tr-arr', 'Расположение чисел', Object.entries(ARRANGEMENTS).map(([k, v]) => [k, v.ru, true]), { wide: true,
@@ -303,7 +322,7 @@ export function initTrails() {
         ${fld.pair('tr-w', 'tr-h', 'Размер стимула: ширина × высота, пикс.', 1920, 1080, { min: 320 })}
         ${fontField('tr-font', 'Шрифт чисел', 'Arial, Helvetica, sans-serif')}
         <div class="field wide"><span class="hint" id="tr-font-hint"></span></div>
-        ${fld.colors('tr-bg', 'tr-fg', 'Цвет фона / цвет чисел', '#d9d9d9', '#111111')}
+        ${fld.colors('tr-bg', 'tr-fg', 'Цвет фона / цвет чисел', BG, FG)}
         ${fld.color('tr-dcol', 'Цвет «числа другого цвета»', '#d62728')}
         ${fld.num('tr-zz', 'Размах зигзага, % высоты строки', 22, { min: 0, max: 45 })}
         ${fld.num('tr-spread', 'Разброс расстояний (для «разного расстояния»), %', 40, { min: 0, max: 80, hint: '0 — как при фиксированном; чем больше, тем неравномернее промежутки.' })}
@@ -326,4 +345,55 @@ export function initTrails() {
   });
   $('#tr-generate').addEventListener('click', generate);
   rebuildRows(false);
+}
+
+/* ---------------- описание для раздела «Методы» ---------------- */
+
+function methodsDoc({ stimuli, style, seed, texts, instructionOn, global }) {
+  const { H1, H2, P, TABLE, paramTable } = M;
+  const uniq = (f) => [...new Set(stimuli.map(f))];
+  const kinds = uniq((s) => s.spec.distractor).map((k) => DISTRACTOR_KINDS[k].ru);
+  const blocks = [
+    H1('Траектории: описание стимулов'),
+    P(`Набор содержит ${stimuli.length} стимулов. В каждом стимуле числа от 1 до N расставлены по строкам слева направо. Участник прослеживает числа взглядом по возрастанию (от 1 до N) или по убыванию (от N до 1), не называя числа вслух и ничего не нажимая; ` +
+      'на дистракторы (если они есть) смотреть не нужно. Закончив, участник нажимает ПРОБЕЛ, затем на экране самооценки щелчком левой кнопки мыши выбирает цифру от 1 до 5, оценивая, насколько хорошо ему удалось выполнить задание, и снова нажимает ПРОБЕЛ. ' +
+      'Основной показатель задания — движения глаз.'),
+    H2('1. Общие параметры'),
+    paramTable([
+      ['Размер стимула', `${style.width} × ${style.height} пикс.`],
+      ['Цвет фона', M.colorText(style.background)],
+      ['Цвет чисел', M.colorText(style.color)],
+      ['Цвет «числа другого цвета» (дистрактор)', M.colorText(style.distractorColor)],
+      ['Шрифт (жирное начертание)', style.fontFamily.split(',')[0].replace(/'/g, '')],
+      ['Размах зигзага', `${Math.round(style.zigzag * 100)}% расстояния между строками`],
+      ['Разброс расстояний (для варианта «разное»)', `${Math.round(style.spread * 100)}%`],
+      ['Виды дистракторов в наборе', kinds.join('; ')],
+      ['Номер случайного набора', seed],
+    ]),
+    H2('2. Построение стимулов'),
+    P('Числа идут по строкам слева направо; число чисел в строке — число столбцов (последняя строка может быть неполной). Расположение «по прямой»: центры чисел одной строки лежат на одной горизонтали; «по зигзагу»: числа в строке чередуются выше и ниже линии строки на величину размаха зигзага. ' +
+      'Расстояние между числами в строке «фиксированное» — равные промежутки; «разное» — промежутки случайно меняются в пределах разброса. ' +
+      'Расстояние между строками (линиями) — расстояние между центрами соседних строк: либо подбирается автоматически по высоте рабочей области экрана, либо задано в пикселях (столбец row_step_px в таблице stimuli.csv). ' +
+      'Дистрактор заменяет число (но не 1 и не последнее число): «число другого цвета» остаётся числом, но окрашено в иной цвет; «буква» — заменяющая буква; «квадрат» и «треугольник» — фигуры. Позиции дистракторов выбираются случайно.'),
+    P('Размер шрифта подбирается автоматически по размеру ячейки одного числа (если не задан для стимула вручную). Направление прослеживания влияет только на инструкцию: расположение чисел одного стимула при смене направления не меняется.'),
+    H2('3. Состав набора'),
+    TABLE(['Имя файла', 'Чисел × строк', 'Расположение', 'Направление', 'Расстояние между числами', 'Расстояние между строками', 'Дистрактор'],
+      stimuli.map((s) => [`${s.name}.png`, `${s.spec.n} × ${s.spec.rows}`, ARRANGEMENTS[s.spec.arrangement].short, DIRECTIONS[s.spec.direction].short, SPACINGS[s.spec.spacing].short, `${Math.round(s.layout.rowStep)} пикс.`, distractorLabel(s.spec)]), [4, 1.4, 1.4, 1.4, 1.4, 1.6, 1.8]),
+    H2('4. Яркость'), M.luminanceParagraph(),
+    H2('5. Инструкции и экран оценки'),
+  ];
+  if (instructionOn) {
+    blocks.push(P('Для каждого сочетания «направление × дистрактор» подготовлена инструкция, а также экран самооценки rating_scale.png с цифрами 1–5 (PNG того же размера и цвета, что стимулы). Тексты:'));
+    for (const [k, v] of Object.entries(texts)) {
+      if (k === 'rating') continue;
+      if (!stimuli.some((s) => keyOf(s.spec.direction, s.spec.distractor) === k)) continue;
+      const [d, kind] = k.split('__');
+      blocks.push(P(`//${DIRECTIONS[d].ru}; ${DISTRACTOR_KINDS[kind].ru.toLowerCase()}.// ${String(v).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
+    }
+    blocks.push(P(`//Экран оценки.// ${String(texts.rating).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
+  } else blocks.push(P('Инструкции в архив не включены.'));
+  blocks.push(H2('6. Ответы и области интереса'),
+    P('Объективного правильного ответа в задании нет: по стимулу регистрируются движения глаз. Файл stimuli_aoi.csv содержит области интереса каждого числа и дистрактора (в пикселях стимула), файл answer_key.csv — положение дистракторов (на них смотреть нельзя) и описание ответа самооценки; области цифр 1–5 — в rating_scale_aoi.csv.'),
+    M.reproducibilityParagraph(seed));
+  return blocks;
 }

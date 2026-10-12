@@ -1,22 +1,25 @@
 /* ============================================================
    verbal/render.js — отрисовка филворда: сверху надпись
-   «Найдите слово: …», ниже — сетка букв (и цифр).
+   «Найдите слово» / «Найдите слова» (какие именно — не указывается),
+   ниже — сетка букв (и цифр).
    ============================================================ */
 
 import { makeRng } from '../../common/rng.js';
 import { equalLightnessPalette } from '../../kit/palette.js';
 import { prepareCanvas } from '../../kit/text.js';
 import { cellFills } from './generator.js';
+import { BG, FG } from '../../kit/defaults.js';
 
 export const DEFAULT_STYLE = {
   width: 1920, height: 1080,
-  background: '#d9d9d9',
-  color: '#111111',
+  background: BG,
+  color: FG,
   gridLine: '#8a8a8a',
   bwFill: '#ffffff',
   fontFamily: 'Arial, Helvetica, sans-serif',
   fontSize: 0,                           // 0 — рекомендуемый (по размеру клетки)
-  instruction: 'Найдите слово: {word}',
+  labelOne: 'Найдите слово',
+  labelMany: 'Найдите слова',
   topBand: 0.14,
   margin: 0.05,
 };
@@ -37,9 +40,10 @@ export function layoutOf(styleIn, rows, cols) {
 
 export const recommendedFont = (style, rows, cols) => layoutOf(style, rows, cols).font;
 
-export function instructionText(style, words) {
-  const tpl = style.instruction && style.instruction.includes('{word}') ? style.instruction : DEFAULT_STYLE.instruction;
-  return tpl.replace('{word}', words.join(', '));
+/** Надпись над сеткой: «Найдите слово» (одно целевое слово) или «Найдите слова» (несколько); слова не называются. */
+export function labelText(style, count) {
+  const s = { ...DEFAULT_STYLE, ...style };
+  return count > 1 ? (s.labelMany || DEFAULT_STYLE.labelMany) : (s.labelOne || DEFAULT_STYLE.labelOne);
 }
 
 /** Рисует стимул и возвращает рамки целевых слов (в пикселях стимула). */
@@ -53,7 +57,7 @@ export function drawVerbalStimulus(canvas, stim, styleIn, scale = 1) {
   ctx.font = `700 ${L.instrSize}px ${s.fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(instructionText(s, stim.placements.map((p) => p.word)), s.width / 2, L.top * 0.5);
+  ctx.fillText(labelText(s, stim.placements.length), s.width / 2, L.top * 0.5);
 
   let fills = null; let palette = null;
   if (stim.color === 'color') {
