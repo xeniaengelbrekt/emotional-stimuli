@@ -11,6 +11,7 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
 {
   const r = generateRotation({ seed: 11, perCombo: 3 });
   ok(r.stimuli.length === 4 * 3 * 3, 'вращение: 4 задания × 3 цветности × 3 = 36');
+  ok(generateRotation({ seed: 1 }).stimuli.length === 12, 'вращение: по умолчанию 12 стимулов');
   const names = new Set(r.stimuli.map((s) => s.name));
   ok(names.size === r.stimuli.length, 'вращение: имена уникальны');
   let good = true; let touch = false; let border = false; let layout = true;

@@ -110,7 +110,7 @@ export function makeFigure(rng, { n = 10, pieces = DEFAULTS.pieces, allowBorder 
   throw new Error('Не удалось расставить фигурки: уменьшите их число или увеличьте поле');
 }
 
-/** Один стимул: фигура-задание и четыре варианта. */
+/** Один стимул: фигура-задание и четыре варианта; верный вариант есть всегда. */
 export function makeTrial(rng, { transform, n, pieces, allowBorder, correctPos }) {
   const set = OPTION_SETS[transform];
   for (let attempt = 0; attempt < 500; attempt++) {

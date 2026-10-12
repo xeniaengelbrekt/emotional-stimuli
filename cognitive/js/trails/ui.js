@@ -11,6 +11,7 @@ import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } fro
 import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../kit/instr.js';
 import { mountResults } from '../kit/results.js';
 import { ensureFont } from '../kit/text.js';
+import { meanLuminance } from '../kit/luminance.js';
 import { DIRECTIONS, ARRANGEMENTS, SPACINGS, DISTRACTOR_KINDS, DEFAULTS, blankRow, buildRows, generateTrails, recommendedFont, distractorLabel } from './generator.js';
 import { DEFAULT_STYLE, drawTrailStimulus, fontSizeOf } from './render.js';
 
@@ -198,7 +199,7 @@ async function generate() {
     await ensureFont(style.fontFamily);
     await tick();
     const stimuli = generateTrails(state.rows, { width: style.width, height: style.height, zigzag: style.zigzag, spread: style.spread, seed });
-    const rows = []; const aoi = [];
+    const rows = []; const aoi = []; const keyRows = [];
     for (const st of stimuli) {
       const sp = st.spec;
       st.draw = (canvas, scale) => drawTrailStimulus(canvas, st, style, scale);
@@ -214,7 +215,12 @@ async function generate() {
         n_numbers: sp.n, n_rows: sp.rows, n_cols: st.layout.cols,
         distractor: sp.distractor, distractor_letter: sp.distractor === 'letter' ? sp.letter : '', n_distractors: st.layout.items.filter((i) => i.isDistractor).length,
         distractor_positions: st.layout.items.filter((i) => i.isDistractor).map((i) => i.value).join(' '),
-        font_px: st.font, width: style.width, height: style.height,
+        font_px: st.font, width: style.width, height: style.height, mean_luminance: meanLuminance(st, style.width),
+      });
+      keyRows.push({
+        stimulus: st.name, file: `stimuli/${st.name}.png`, response_type: 'rating_1_5', correct_response: '',
+        direction_to_trace: sp.direction, distractor_positions: st.layout.items.filter((i) => i.isDistractor).map((i) => i.value).join(' '),
+        meaning: 'ответ — самооценка клавишей 1–5 (объективного верного ответа в задании нет); зоны дистракторов — на них смотреть нельзя',
       });
       for (const b of st.boxes) aoi.push({
         stimulus: st.name, order: b.order + 1, kind: b.kind, text: b.text, number: b.kind === 'number' || b.kind === 'recolored' ? b.value : '',
@@ -239,7 +245,7 @@ async function generate() {
       prefix: 'tr', step: 4, width: style.width, height: style.height, stimuli,
       filters: Object.keys(DIRECTIONS).filter((d) => stimuli.some((s) => s.spec.direction === d)).map((d) => [d, DIRECTIONS[d].short]),
       requested: state.rows.length, built: stimuli.length, pngs,
-      manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoi }],
+      answerKey: keyRows, manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoi }],
       archiveName: 'trails_stimuli',
       settings: { experiment: 'trails-king-devick', global: readGlobal(), rows: state.rows, style, instructions: editor.enabled() ? texts : null },
     });

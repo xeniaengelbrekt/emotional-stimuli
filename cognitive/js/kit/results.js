@@ -16,7 +16,7 @@ const THUMB_W = 480;
  * ctx: {
  *   prefix, step (номер шага), width, height, stimuli, filters?: [[key, label]],
  *   summaryHtml?, afterHtml?, warnings?: string[], built?, requested?,
- *   manifests: [{ file, rows }], pngs?: [{ path, draw(canvas) }] (инструкции и т.п.),
+ *   answerKey?: строки ключа ответов (answer_key.csv), manifests: [{ file, rows }], pngs?: [{ path, draw(canvas) }] (инструкции и т.п.),
  *   settings: object, archiveName
  * }
  */
@@ -38,6 +38,7 @@ export function mountResults(box, ctx) {
         ${filters.map(([k, t], i) => `<button class="subtab${i === 0 ? ' active' : ''}" data-f="${esc(k)}" type="button">${esc(t)}</button>`).join('')}
       </div>` : ''}
       <span class="toolbar-spacer"></span>
+      ${ctx.answerKey ? `<button class="btn" id="${prefix}-dl-key" type="button">↓ Ключ ответов (CSV)</button>` : ''}
       <button class="btn" id="${prefix}-dl-csv" type="button">↓ Таблицы CSV</button>
       <button class="btn btn-primary" id="${prefix}-dl-zip" type="button">↓ PNG-архив (ZIP)</button>
     </div>
@@ -97,6 +98,7 @@ export function mountResults(box, ctx) {
   $(`#${prefix}-dl-csv`).addEventListener('click', () => {
     ctx.manifests.forEach((m, i) => setTimeout(() => downloadText(toCSV(m.rows, m.columns), m.file), i * 300));
   });
+  $(`#${prefix}-dl-key`)?.addEventListener('click', () => downloadText(toCSV(ctx.answerKey), 'answer_key.csv'));
   $(`#${prefix}-dl-zip`).addEventListener('click', () => downloadArchive(ctx));
 }
 
@@ -121,6 +123,7 @@ async function downloadArchive(ctx) {
     };
     for (const p of ctx.pngs || []) entries.push({ name: p.path, data: await png(p.draw) });
     for (const st of ctx.stimuli) entries.push({ name: `stimuli/${st.name}.png`, data: await png(st.draw) });
+    if (ctx.answerKey) entries.push({ name: 'answer_key.csv', data: enc.encode('\ufeff' + toCSV(ctx.answerKey)) });
     for (const m of ctx.manifests) entries.push({ name: m.file, data: enc.encode('﻿' + toCSV(m.rows, m.columns)) });
     entries.push({ name: 'settings.json', data: enc.encode(JSON.stringify({ generated: new Date().toISOString(), ...ctx.settings }, null, 2)) });
     downloadBlob(new Blob([buildZip(entries)], { type: 'application/zip' }), `${ctx.archiveName}_${stamp()}.zip`);

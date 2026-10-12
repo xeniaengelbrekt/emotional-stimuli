@@ -9,6 +9,7 @@ import { panelHead, stepTitle, card, grid, sep, sub, generateBar, alertBox } fro
 import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } from '../kit/instr.js';
 import { mountResults } from '../kit/results.js';
 import { ensureFont } from '../kit/text.js';
+import { meanLuminance } from '../kit/luminance.js';
 import { OBJECT_TYPES, ARRANGEMENTS, ALPHABETS, generateDiff } from './generator.js';
 import { DEFAULT_STYLE, drawDiffFrame } from './render.js';
 
@@ -96,7 +97,7 @@ async function generate() {
     await tick();
     const res = generateDiff(opts);
     const stimuli = [];
-    const rows = []; const aoi = [];
+    const rows = []; const aoi = []; const keyRows = [];
     for (const se of res.series) {
       se.frames.forEach((fr, i) => {
         const st = se.stimuli[i];
@@ -116,7 +117,13 @@ async function generate() {
           object_type: se.type, arrangement: se.arrangement, n_objects: se.N, series_length: se.frames.length,
           changed_object: ch ? ch.index + 1 : '', changed_from: ch ? ch.from : '', changed_to: ch ? ch.to : '',
           aoi_x: changedBox ? changedBox.x : '', aoi_y: changedBox ? changedBox.y : '', aoi_w: changedBox ? changedBox.w : '', aoi_h: changedBox ? changedBox.h : '',
-          width: style.width, height: style.height, font_px: style.fontSize,
+          width: style.width, height: style.height, font_px: style.fontSize, mean_luminance: meanLuminance(st, style.width),
+        });
+        keyRows.push({
+          stimulus: st.name, file: `stimuli/${st.name}.png`, series: se.number, frame: i, response_type: i === 0 ? 'none' : 'click',
+          correct_response: ch ? `object ${ch.index + 1}: ${ch.from} → ${ch.to}` : '',
+          aoi_x: changedBox ? changedBox.x : '', aoi_y: changedBox ? changedBox.y : '', aoi_w: changedBox ? changedBox.w : '', aoi_h: changedBox ? changedBox.h : '',
+          meaning: i === 0 ? 'экран для запоминания: ответа нет' : 'щелчок внутри рамки изменившегося объекта — верный ответ',
         });
         st.boxes.forEach((b) => aoi.push({
           stimulus: st.name, series: se.number, frame: i, object: b.index + 1, value: b.text, row: b.row ?? '', col: b.col ?? '',
@@ -133,7 +140,7 @@ async function generate() {
       prefix: 'df', step: 3, width: style.width, height: style.height, stimuli,
       filters: res.series.map((s) => [s.id, `серия ${s.number}: ${s.id}`]),
       requested: res.series.length * opts.frames, built: stimuli.length,
-      pngs, manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoi }],
+      pngs, answerKey: keyRows, manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoi }],
       archiveName: 'change_detection_stimuli',
       settings: { experiment: 'change-detection', options: opts, style, instructions: editor.enabled() ? texts : null },
       resultNote: `Серий: ${res.series.length}.`,

@@ -13,6 +13,7 @@ import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } fr
 import { mountResults, metricTable } from '../kit/results.js';
 import { evaluateSalience, relativeAoiSalience, salienceBalance, METHOD_LABELS, SAL_KEYS } from '../kit/salience.js';
 import { ensureFont } from '../kit/text.js';
+import { meanLuminance } from '../kit/luminance.js';
 import { ORIENTATIONS, COLOR_MODES, DISTRACTORS, DEFAULTS, generateVerbal, cleanWord, isPlainWord, logFreq } from './generator.js';
 import { DEFAULT_STYLE, drawVerbalStimulus, recommendedFont, instructionText } from './render.js';
 
@@ -232,6 +233,7 @@ function showResults(res, stimuli, opts, style, salMode, method) {
       target_frequency_mean: st.targets.every((w) => w.freq != null) ? mean(st.targets.map((w) => w.freq)).toFixed(2) : '',
       target_rating_mean: mean(st.targets.map((w) => w.ratings[w.category])).toFixed(2),
       grid_cols: opts.cols, grid_rows: opts.rows, distractors: opts.distractors, border_allowed: opts.allowBorder ? 1 : 0, width: W, height: H,
+      mean_luminance: meanLuminance(st, W),
     };
     if (st.sal) {
       for (const k of SAL_KEYS) r[`salience_${k}`] = st.sal[k];
@@ -250,6 +252,13 @@ function showResults(res, stimuli, opts, style, salMode, method) {
       });
     });
   }
+
+  const keyRows = tRows.map((r) => ({
+    stimulus: r.stimulus, file: `stimuli/${r.stimulus}.png`, response_type: 'click', correct_response: r.word,
+    n_targets: stimuli.find((s) => s.name === r.stimulus).targets.length,
+    aoi_x: r.aoi_x, aoi_y: r.aoi_y, aoi_w: r.aoi_w, aoi_h: r.aoi_h,
+    meaning: 'щелчок внутри рамки целевого слова — верный ответ; несколько слов — каждое находят и нажимают по очереди',
+  }));
 
   // баланс слов между категориями
   const base = new Map();
@@ -298,7 +307,7 @@ function showResults(res, stimuli, opts, style, salMode, method) {
     prefix: 'vb', step: 3, width: W, height: H, stimuli,
     filters: opts.colors.length > 1 ? opts.colors.map((c) => [c, COLOR_MODES[c].short]) : null,
     requested: res.requested, built: stimuli.length, warnings: res.warnings,
-    summaryHtml: summary, pngs,
+    summaryHtml: summary, pngs, answerKey: keyRows,
     manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_targets.csv', rows: tRows }],
     archiveName: 'filword_stimuli',
     settings: { experiment: 'verbal-thinking-filword', options: opts, style, wordList: state.fileName, alphabet: res.alphabet, saliency: salMode === 'off' ? null : { method, mode: salMode }, instructions: editor.enabled() ? editor.texts() : null },

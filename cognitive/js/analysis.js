@@ -4,7 +4,8 @@
    чтобы таблицы можно было готовить заранее.
    ============================================================ */
 
-import { $ } from '../../js/common/ui.js';
+import { $, downloadText } from '../../js/common/ui.js';
+import { toCSV } from '../../js/common/csv.js';
 
 const KEYS = `
   <table class="help-table"><thead><tr><th>Методика</th><th>Что отвечает участник</th><th>Что берётся из архива стимулов</th></tr></thead><tbody>
@@ -13,6 +14,51 @@ const KEYS = `
     <tr><td>Определение различий</td><td>Щелчок мыши по изменившемуся объекту на каждом экране серии</td><td><code>stimuli.csv</code>, <code>stimuli_aoi.csv</code>: что и где изменилось на каждом кадре</td></tr>
     <tr><td>Траектории</td><td>Оценка 1–5 с клавиатуры (движения глаз — основной показатель)</td><td><code>stimuli.csv</code>, <code>stimuli_aoi.csv</code>: направление, расположение, дистракторы, рамка каждого числа</td></tr>
   </tbody></table>`;
+
+/* Таблица участников: одна строка на участника. Заполняется до анализа. */
+const PARTICIPANT_COLUMNS = [
+  ['participant_id', 'код участника (без имени)', 'обяз.'],
+  ['group', 'norm / ptsd', 'обяз.'],
+  ['age', 'возраст, лет', 'ковариата'],
+  ['sex', 'пол', 'ковариата'],
+  ['education_years', 'лет образования', 'ковариата'],
+  ['handedness', 'ведущая рука (right / left / ambi)', 'ковариата'],
+  ['vision_correction', 'очки/линзы во время записи (0/1) и острота зрения', 'качество данных'],
+  ['ptsd_score', 'тяжесть ПТСР (CAPS-5, PCL-5 …)', 'описание группы'],
+  ['ptsd_scale', 'название шкалы', ''],
+  ['months_since_trauma', 'месяцев с травмы', 'ковариата'],
+  ['depression_score', 'депрессия: балл (BDI-II, PHQ-9, HADS-D …)', 'ковариата'],
+  ['depression_scale', 'название шкалы', ''],
+  ['depression_dx', 'диагноз депрессии (0/1)', 'ковариата'],
+  ['anxiety_score', 'тревога: балл (HADS-A, GAD-7 …)', 'ковариата'],
+  ['tbi', 'ЧМТ в анамнезе (0/1)', 'ковариата'],
+  ['tbi_months_since', 'месяцев с ЧМТ', 'ковариата'],
+  ['tbi_severity', 'тяжесть ЧМТ (mild / moderate / severe), потеря сознания (0/1)', 'ковариата'],
+  ['other_dx', 'другие диагнозы (СДВГ, зависимости …), через «;»', 'описание'],
+  ['med_any_cns', 'приём психоактивных препаратов сейчас (0/1)', 'ковариата'],
+  ['med_antidepressant', 'антидепрессанты (0/1)', 'ковариата'],
+  ['med_benzodiazepine', 'бензодиазепины (0/1)', 'ковариата'],
+  ['med_antipsychotic', 'антипсихотики (0/1)', 'ковариата'],
+  ['med_anticonvulsant', 'противосудорожные / нормотимики (0/1)', 'ковариата'],
+  ['med_hypnotic', 'снотворные (0/1)', 'ковариата'],
+  ['med_prazosin_betablocker', 'празозин, бета-блокаторы (0/1)', 'ковариата'],
+  ['med_dose_equiv', 'суммарная доза в эквиваленте (диазепам, хлорпромазин — укажите в notes)', 'ковариата'],
+  ['hours_since_last_dose', 'часов с последнего приёма', 'ковариата'],
+  ['sleep_hours_last_night', 'часов сна накануне', 'ковариата'],
+  ['caffeine_nicotine_alcohol_24h', 'кофеин / никотин / алкоголь за 24 ч (0/1 или количество)', 'ковариата'],
+  ['session_start', 'дата и время записи (ISO)', 'ковариата (время суток)'],
+  ['tracker_error_deg', 'ошибка калибровки айтрекера, градусы', 'качество данных'],
+  ['valid_samples_pct', 'доля валидных отсчётов, %', 'качество данных'],
+  ['screen_distance_cm', 'расстояние до экрана, см', 'качество данных'],
+  ['notes', 'заметки', ''],
+];
+const RESPONSE_COLUMNS = ['participant_id', 'stimulus', 'trial_order', 'block', 'is_practice', 'response', 'response_x', 'response_y', 'rt_ms', 'stimulus_onset_ms'];
+
+function downloadParticipantsTemplate() {
+  downloadText(toCSV([], PARTICIPANT_COLUMNS.map((c) => c[0])), 'participants_template.csv');
+  setTimeout(() => downloadText(toCSV(PARTICIPANT_COLUMNS.map(([column, description, role]) => ({ column, description, role })), ['column', 'description', 'role']), 'participants_codebook.csv'), 300);
+}
+const downloadResponsesTemplate = () => downloadText(toCSV([], RESPONSE_COLUMNS), 'responses_template.csv');
 
 export function initAnalysis() {
   $('#mode-analysis').innerHTML = `
@@ -32,6 +78,25 @@ export function initAnalysis() {
       <li><strong>Данные опросников</strong> (для второго сценария) — баллы участников по эмоциональным шкалам.</li>
     </ul>
     ${KEYS}
+
+    <h4 class="sub-heading">Таблицы, которые можно подготовить уже сейчас</h4>
+    <ul class="dev-list">
+      <li><strong>Ключ ответов</strong> — <code>answer_key.csv</code> в архиве стимулов (и кнопка «Ключ ответов» после формирования): имя стимула, тип ответа, верный ответ и рамка верного объекта. Точность считается по нему; в таблице ответов клавиши 0 и Enter считаются ошибкой/пропуском (в каждом задании верный вариант есть всегда).</li>
+      <li><strong>Таблица участников</strong> — группа, возраст, пол, образование, тяжесть ПТСР, депрессия, ЧМТ, лекарства, сон, качество записи.</li>
+      <li><strong>Таблица ответов</strong> — по строке на пробу: участник, имя стимула, ответ, время реакции.</li>
+    </ul>
+    <div class="toolbar tool-gap">
+      <button class="btn" id="an-dl-participants" type="button">↓ Таблица участников (шаблон + описание колонок)</button>
+      <button class="btn" id="an-dl-responses" type="button">↓ Таблица ответов (шаблон)</button>
+    </div>
+
+    <h4 class="sub-heading">Как будут учтены коморбидность и лекарства</h4>
+    <ul class="dev-list">
+      <li>Депрессия — как балл (непрерывная ковариата), ЧМТ — 0/1 (при необходимости со сроком); <strong>лекарства при 50 участниках нельзя вносить по классам</strong> — они сводятся к одному-двум показателям (приём психоактивных препаратов; эквивалент бензодиазепинов).</li>
+      <li>Основная модель — без ковариат коморбидности (депрессия — часть клинической картины ПТСР, поправка на неё может «съесть» настоящий эффект); вторая — с ковариатами; плюс анализ чувствительности: без участников с ЧМТ и без принимающих бензодиазепины.</li>
+      <li>Качество записи (ошибка калибровки, доля валидных отсчётов) — критерий исключения проб и участников, заданный заранее, и ковариата для показателей движений глаз.</li>
+      <li>Средняя яркость каждого стимула (<code>mean_luminance</code> в <code>stimuli.csv</code>) — ковариата для зрачка и скорости реакции на свет.</li>
+    </ul>
 
     <h4 class="sub-heading">Два сценария анализа</h4>
     <div class="dev-cards">
@@ -70,4 +135,6 @@ export function initAnalysis() {
         <p class="placeholder-sub">Модуль в разработке</p>
       </div>
     </div>`;
+  $('#an-dl-participants').addEventListener('click', downloadParticipantsTemplate);
+  $('#an-dl-responses').addEventListener('click', downloadResponsesTemplate);
 }

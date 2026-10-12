@@ -10,6 +10,7 @@ import { instructionEditorHtml, mountInstructionEditor, drawInstructionText } fr
 import { mountResults, metricTable } from '../kit/results.js';
 import { evaluateSalience, relativeAoiSalience, salienceBalance, METHOD_LABELS, SAL_KEYS } from '../kit/salience.js';
 import { ensureFont } from '../kit/text.js';
+import { meanLuminance } from '../kit/luminance.js';
 import { TRANSFORMS, TRANSFORM_KEYS, COLOR_MODES, COLOR_KEYS, OP_RU, generateRotation } from './generator.js';
 import { DEFAULT_STYLE, autoCell, checkLayout, drawRotationStimulus, drawFixation } from './render.js';
 
@@ -193,6 +194,7 @@ function showResults(res, stimuli, opts, style, salOn, method) {
     const r = {
       stimulus: st.name, task: st.transform, color_mode: st.color, correct_answer: st.correctPos,
       option_1: st.options[0].op, option_2: st.options[1].op, option_3: st.options[2].op, option_4: st.options[3].op,
+      mean_luminance: meanLuminance(st, W),
       n_filled_cells: st.figure.cells.length, n_figures: st.figure.pieces.length, field_cells: opts.n, width: W, height: H,
     };
     if (st.sal) {
@@ -213,6 +215,13 @@ function showResults(res, stimuli, opts, style, salOn, method) {
   }
 
   const pos = [1, 2, 3, 4].map((p) => stimuli.filter((s) => s.correctPos === p).length);
+  const keyRows = stimuli.map((st) => ({
+    stimulus: st.name, file: `stimuli/${st.name}.png`, task: st.transform, color_mode: st.color,
+    response_type: 'key', correct_response: st.correctPos,
+    correct_operation: st.options[st.correctPos - 1].op,
+    accepted_responses: '1 2 3 4 0 Enter', meaning: 'верный ответ — номер варианта 1–4; клавиши 0 и Enter означают «верного нет» и «не могу решить» (ошибка/пропуск)',
+    option_1: st.options[0].op, option_2: st.options[1].op, option_3: st.options[2].op, option_4: st.options[3].op,
+  }));
   let summary = `
     <h4 class="sub-heading">Номера верных ответов</h4>
     <p class="muted-p">Сколько раз верным был вариант 1, 2, 3, 4 — номера распределены поровну (с точностью до одного).</p>
@@ -251,6 +260,7 @@ function showResults(res, stimuli, opts, style, salOn, method) {
     filters: opts.transforms.map((k) => [k, TRANSFORMS[k].short]),
     requested: res.requested, built: stimuli.length,
     summaryHtml: summary, pngs,
+    answerKey: keyRows,
     manifests: [{ file: 'stimuli.csv', rows }, { file: 'stimuli_aoi.csv', rows: aoiRows }],
     archiveName: 'mental_rotation_stimuli',
     settings: { experiment: 'planar-mental-rotation', options: opts, style, saliency: salOn ? method : null, instructions: editor.enabled() ? items : null },
