@@ -113,6 +113,13 @@ def main(folder, old_path, out_dir, min_agree=0.3, max_same=0.6):
                     row['сдвиг_' + sc] = fmt(ps[sc][0] - f(r0[sc])) if ps[sc][0] is not None else ''
                 tables[mode].append(row)
     # метки авторов не уникальны (у разных картинок встречается одно имя) и местами с пробелами: делаем имя файла уникальным
+    # у одной картинки автор не указал название и группу (опрос 7, фото 5): по изображению это животное (панда)
+    for rows in tables.values():
+        for r in rows:
+            if r['файл'].strip('?') == '' :
+                r['файл'] = f"unnamed_s{int(r['опрос_№']):02d}p{int(r['фото_в_опросе']):02d}"
+                r['группа'] = 'animals'
+                r['примечание'] = 'название не указано автором; группа определена по изображению'
     norm = lambda t: re.sub(r'[\s]+', '_', t.strip())
     count = {}
     for r in tables['all']:
