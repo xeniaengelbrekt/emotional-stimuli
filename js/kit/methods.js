@@ -25,6 +25,13 @@ export const paramTable = (rows) => TABLE(
   rows.some((r) => r[2]) ? [3, 2, 4] : [3, 2],
 );
 
+/** Склонение по числу: plural(21, 'стимул', 'стимула', 'стимулов') → «стимул». */
+export const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100, b = a % 10;
+  return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many;
+};
+export const nStim = (n) => `${n} ${plural(n, 'стимул', 'стимула', 'стимулов')}`;
+
 export const yesNo = (v) => (v ? 'да' : 'нет');
 export const px = (v) => `${v} пикс.`;
 export const colorText = (hex) => `${colorName(hex)} (${hex})`;

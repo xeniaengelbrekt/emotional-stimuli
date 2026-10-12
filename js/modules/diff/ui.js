@@ -218,7 +218,7 @@ function methodsDoc({ res, stimuli, opts, style, texts, instructionOn }) {
   const step = opts.step > 0 ? opts.step : autoStep({ ...opts, width: style.width, height: style.height, fontSize: style.fontSize });
   const blocks = [
     H1('Определение различий: описание стимулов'),
-    P(`Набор содержит ${res.series.length} серий по ${opts.frames} экранов (${stimuli.length} PNG). На первом экране серии показаны ${type === 'letters' ? 'буквы' : 'числа'} (число объектов — ${opts.counts.join(', ')} в разных сериях), которые участник должен запомнить. ` +
+    P(`Набор содержит ${res.series.length} ${M.plural(res.series.length, 'серию', 'серии', 'серий')} по ${opts.frames} ${M.plural(opts.frames, 'экрану', 'экрана', 'экранов')} (${stimuli.length} PNG). На первом экране серии показаны ${type === 'letters' ? 'буквы' : 'числа'} (число объектов — ${opts.counts.join(', ')} в разных сериях), которые участник должен запомнить. ` +
       `На каждом из следующих ${opts.frames - 1} экранов один объект заменяется другим${opts.shuffle ? ', при этом все объекты на каждом экране меняются местами' : ', остальные объекты остаются на своих местах'}. ` +
       'Участник должен найти изменившийся объект и щёлкнуть по нему левой кнопкой мыши, после чего нажимает клавишу ПРОБЕЛ для перехода к следующему экрану.'),
     H2('1. Параметры стимулов'),
