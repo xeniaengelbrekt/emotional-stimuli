@@ -1,5 +1,5 @@
 {
-  "name": "emotional-stimuli",
+  "name": "stimulus-generators",
   "version": "0.1.0",
   "description": "Генератор стимулов и анализ движений глаз: эмоционально окрашенные изображения и слова",
   "type": "module",
