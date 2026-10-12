@@ -1,0 +1,234 @@
+/* ============================================================
+   Эмоциональные стимулы — стили, добавленные к теме «Салиентности»
+   (тёмная лаборатория, зелёный фосфорный акцент)
+   ============================================================ */
+
+:root {
+  --blue: #6aa7ff;
+}
+
+.task-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* Метка «в разработке» */
+.dev-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 10px;
+  padding: 2px 9px;
+  border: 1px solid var(--warn);
+  border-radius: 2px;
+  color: var(--warn);
+  background: rgba(240, 160, 64, 0.1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.task-card-dev { border-style: dashed; }
+
+/* Шаги */
+.step-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 40px 0 16px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--serif-warm);
+}
+.panel-header + .step-title { margin-top: 8px; }
+.step-num {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--green);
+  border-radius: 50%;
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+.sub-heading {
+  margin: 32px 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.muted-p { margin: 0 0 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text-dim); max-width: 860px; }
+.muted { color: var(--text-mute); }
+.hl { color: var(--green); font-weight: 600; }
+.warn-text { color: var(--warn); }
+.tool-gap { margin-top: 14px; }
+.tool-gap + .tool-gap { margin-top: 14px; }
+
+/* Параметры */
+.params-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  padding: 22px 24px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px 24px;
+}
+.form-sep { height: 1px; background: var(--border); margin: 22px 0; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+.field > label:not(.check) {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  font-weight: 500;
+  line-height: 1.4;
+}
+input[type="number"], input[type="text"] {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-bright);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+input[type="number"]:hover, input[type="text"]:hover { border-color: var(--border-hov); }
+input[type="number"]:focus, input[type="text"]:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12);
+}
+input::placeholder { color: var(--text-mute); }
+input[type="color"] {
+  width: 64px; height: 36px; padding: 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.pair { display: flex; align-items: center; gap: 10px; color: var(--text-mute); }
+.check-row { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.check input { accent-color: var(--green); margin-top: 3px; flex: none; }
+.check em { display: block; font-style: normal; font-size: 12px; color: var(--text-mute); }
+.check-row .check em { display: none; }
+
+/* Уведомления внутри страницы */
+.alert {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.alert ul { margin: 6px 0 8px; padding-left: 20px; }
+.alert.ok   { border-color: var(--green); background: rgba(74, 222, 128, 0.06); }
+.alert.warn { border-color: var(--warn);  background: rgba(240, 160, 64, 0.08); }
+.alert.info { border-color: var(--blue);  background: rgba(106, 167, 255, 0.07); }
+.alert strong { color: var(--text-bright); }
+
+/* Таблицы */
+.table-scroll { max-height: 440px; }
+.data-table-wrap.narrow { max-width: 640px; }
+.data-table td, .data-table th { vertical-align: middle; }
+.data-table td:nth-child(2) { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.row-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border); display: block; }
+.cell-num {
+  width: 72px !important;
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  text-align: right;
+}
+.select-cell select { padding: 6px 28px 6px 8px; font-size: 12px; min-width: 130px; }
+.select-inline { width: 180px; }
+.select-inline select { padding: 7px 28px 7px 10px; font-size: 12px; }
+.ok-cell { color: var(--green) !important; }
+.bad-cell { color: var(--err) !important; }
+.feas-table td:first-child { color: var(--text-bright); }
+.zone-table td { text-align: center !important; font-size: 15px; }
+
+/* Эмоциональные метки */
+.emo-chip {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid var(--c, var(--text-mute));
+  border-radius: 2px;
+  color: var(--c, var(--text-mute));
+  background: color-mix(in srgb, var(--c, var(--text-mute)) 12%, transparent);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.emo-none { --c: var(--text-mute); border-style: dashed; }
+
+/* Галерея стимулов */
+.subtab-bar.flush { margin-bottom: 0; }
+.stim-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin-top: 18px; }
+.stim-card { cursor: pointer; }
+.stim-thumb { aspect-ratio: 16 / 9; background: #000; }
+.stim-thumb canvas { object-fit: contain; }
+.stim-card .result-stats { align-items: center; justify-content: space-between; }
+.mini-grid {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 12px);
+  gap: 2px;
+}
+.mini-grid i { width: 12px; height: 12px; border-radius: 2px; display: block; }
+
+/* Окно просмотра стимула */
+.viewer-window { max-width: 1240px; }
+.viewer-body { display: flex; flex-direction: column; gap: 20px; }
+.viewer-canvas canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.viewer-info { font-family: var(--font-sans); font-size: 13px; }
+
+/* Модули анализа: заглушки */
+.dev-list { margin: 0 0 8px; padding-left: 22px; font-family: var(--font-sans); font-size: 14px; line-height: 1.7; color: var(--text); max-width: 900px; }
+.dev-list li::marker { color: var(--green); }
+.dev-list strong { color: var(--text-bright); font-weight: 600; }
+.dev-list code { color: var(--serif-warm); font-size: 12px; }
+.dev-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.dev-card {
+  border: 1px dashed var(--border-hov);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  padding: 20px 22px;
+}
+.dev-card-num { font-family: var(--font-serif); font-size: 30px; color: var(--green); opacity: 0.7; line-height: 1; }
+.dev-card h4 { margin: 8px 0 8px; font-family: var(--font-serif); font-size: 20px; font-weight: 500; color: var(--serif-warm); }
+.dev-card p { margin: 0; font-family: var(--font-sans); font-size: 13.5px; line-height: 1.65; color: var(--text-dim); }
+.dev-placeholder { margin-top: 28px; padding: 48px 32px; }
+
+@media (max-width: 900px) {
+  .task-row-2, .dev-cards { grid-template-columns: 1fr; }
+  .page-header { padding: 20px 20px 0; flex-wrap: wrap; gap: 12px; }
+  .container { padding: 24px 20px 48px; }
+}
+
+a.task-card, a.task-card:hover { text-decoration: none; color: inherit; }

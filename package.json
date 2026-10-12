@@ -1,0 +1,11 @@
+{
+  "name": "emotional-stimuli",
+  "version": "0.1.0",
+  "description": "Генератор стимулов и анализ движений глаз: эмоционально окрашенные изображения и слова",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node tests/test-images.mjs && node tests/test-words.mjs && node tests/test-common.mjs",
+    "start": "python3 -m http.server 8765"
+  }
+}

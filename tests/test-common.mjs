@@ -1,0 +1,15 @@
+import { parseCSV, parseNum, findColumn } from '../js/common/csv.js';
+import { buildZip, crc32 } from '../js/common/zip.js';
+import { classifyEmotion } from '../js/common/emotions.js';
+let fails = 0;
+const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok  ', m); };
+const p = parseCSV('﻿файл;нейтральность;грусть\r\na.jpg;"3,5";1,2\r\n');
+ok(p.separator === ';' && p.rows[0]['файл'] === 'a.jpg' && parseNum(p.rows[0]['нейтральность']) === 3.5, 'CSV: ; и десятичная запятая');
+ok(findColumn(p.columns, ['Нейтральность']) === 'нейтральность', 'findColumn');
+ok(crc32(new TextEncoder().encode('123456789')) === 0xCBF43926, 'crc32');
+const z = buildZip([{ name: 'a.txt', data: new TextEncoder().encode('hi') }]);
+ok(z[0] === 0x50 && z[1] === 0x4b, 'zip сигнатура');
+ok(classifyEmotion({ neutral: 1, positive: 5, sad: 2, threat: 1 }) === 'positive', 'категория = максимум');
+ok(classifyEmotion({ neutral: 3, positive: 3, sad: 2, threat: 1 }) === null, 'ничья → без категории');
+ok(classifyEmotion({ neutral: 3, positive: 3.2, sad: 2, threat: 1 }, { margin: 0.5 }) === null, 'порог отрыва');
+process.exit(fails ? 1 : 0);
