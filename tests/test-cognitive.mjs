@@ -3,6 +3,7 @@ import { generateVerbal, findOccurrences, cleanWord } from '../js/modules/verbal
 import { generateDiff } from '../js/modules/diff/generator.js';
 import { buildRows, generateTrails, layoutTrail } from '../js/modules/trails/generator.js';
 import { makeRng } from '../js/common/rng.js';
+import { sameLexeme } from '../js/common/lexeme.js';
 
 let fails = 0;
 const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok  ', m); };
@@ -92,6 +93,20 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   const bwW = wordsOf(bwS); const colW = wordsOf(colS);
   ok(new Set([...bwW, ...colW]).size === bwW.length + colW.length, 'филворд: слова ч/б и цветных стимулов не повторяются (разные стимулы)');
   ok(new Set(r.stimuli.map((x) => JSON.stringify(x.letters))).size === r.stimuli.length, 'филворд: все сетки (ч/б и цветные) разные');
+  // одинаковая длина слов во всех стимулах
+  const fl = generateVerbal(words, { seed: 4, colors: ['bw', 'color'], orientations: ['horizontal', 'vertical'], fixedLength: 6 });
+  ok(fl.stimuli.length === 4 && fl.stimuli.every((s) => s.targets.every((w) => w.len === 6)), 'филворд: фиксированная длина — все слова во всех стимулах по 6 букв');
+  const none = generateVerbal(words.filter((w) => w.len !== 9), { seed: 4, fixedLength: 9 });
+  ok(none.stimuli.length === 0 && none.warnings.length > 0, 'филворд: если слов нужной длины нет — предупреждение, стимулов нет');
+  // словоформы одного слова в одном стимуле не допускаются
+  const forms = [];
+  const stemRng = makeRng(11);
+  for (const c of ['neutral', 'positive', 'sad', 'threat']) for (let i = 0; i < 3; i++) {
+    const base = Array.from({ length: 6 }, () => L[stemRng.int(L.length)]).join('');
+    for (const end of ['А', 'Ы']) forms.push({ id: `${c}${end}${i}`, word: base + end, len: 7, freq: 50, ratings: { neutral: 1, positive: 1, sad: 1, threat: 1, [c]: 5 }, category: c });
+  }
+  const fr = generateVerbal(forms, { seed: 3, targetsPerStimulus: 8, orientations: ['horizontal'], perCombo: 1, allowTouch: true, allowOverlap: true, rows: 12, cols: 12 });
+  ok(fr.stimuli.length > 0 && fr.stimuli.every((s) => new Set(s.targets.map((w) => w.word.slice(0, 6))).size === s.targets.length), 'филворд: словоформы одного слова (общая основа) не попадают в один стимул');
   // 8 слов: по 2 из каждой категории; число не кратное 4 округляется вверх с предупреждением
   const e8 = generateVerbal(words, { seed: 2, targetsPerStimulus: 8, orientations: ['horizontal'], allowTouch: true });
   ok(e8.stimuli[0].targets.length === 8 && [...new Set(e8.stimuli[0].targets.map((w) => w.category))].every((c) => e8.stimuli[0].targets.filter((w) => w.category === c).length === 2), 'филворд: 8 слов — по 2 из каждой категории');
@@ -235,6 +250,10 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   ok(rowsAll.every((x) => x.error_logic && x.cells_shared_with_correct >= 0) && rowsAll.filter((x) => x.is_correct).every((x) => x.cells_shared_with_correct === x.n_cells), 'вращение: у каждого варианта есть описание логики; верный совпадает с собой');
   const sm = summarizeOptions(r.stimuli);
   ok(sm.length === 16 && sm.every((x) => OPTION_LOGIC[`${x.task}:${x.operation}`]), 'вращение: сводка — 4 задания × 4 типа вариантов');
+}
+
+{
+  ok(sameLexeme('Тактика', 'тактики') && sameLexeme('звезда', 'Звезды') && sameLexeme('идеал', 'идеалы') && !sameLexeme('слон', 'столб') && !sameLexeme('горе', 'город'), 'словоформы: эвристика находит словоформы и не трогает разные слова');
 }
 
 process.exit(fails ? 1 : 0);

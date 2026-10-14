@@ -27,6 +27,7 @@
    ============================================================ */
 
 import { makeRng } from '../../common/rng.js';
+import { sameLexeme, hasRelative } from '../../common/lexeme.js';
 import { EMOTION_KEYS } from '../../common/emotions.js';
 
 export const ORIENTATIONS = {
@@ -59,6 +60,7 @@ export const DEFAULTS = {
   matchLength: true,
   matchFreq: true,
   matchRating: true,
+  fixedLength: 0,           // 0 — длина не фиксируется; N — все слова во всех стимулах ровно N букв
   perCombo: 1,
   orientations: ['horizontal', 'vertical'],
   colors: ['bw'],
@@ -147,8 +149,10 @@ export const maxWordLength = (o) => Math.min(o.rows, o.cols) - (o.allowBorder ? 
 export function matchBlocks(words, nBlocks, rowsPerBlock, o, rng) {
   const warnings = [];
   const maxLen = maxWordLength(o);
-  const eligible = words.filter((w) => w.category && w.len <= maxLen && w.len >= 2);
-  if (words.length && eligible.length < words.filter((w) => w.category).length) {
+  const fixLen = o.fixedLength > 0 ? o.fixedLength : 0;
+  const eligible = words.filter((w) => w.category && w.len <= maxLen && w.len >= 2 && (!fixLen || w.len === fixLen));
+  if (fixLen && fixLen > maxLen) warnings.push(`Слова длиной ${fixLen} букв не помещаются в сетку ${o.cols}×${o.rows}.`);
+  if (words.length && !fixLen && eligible.length < words.filter((w) => w.category).length) {
     warnings.push(`Слова длиннее ${maxLen} букв не помещаются в сетку ${o.cols}×${o.rows} и не используются.`);
   }
   const cost = zFeatures(eligible, o);
@@ -159,10 +163,11 @@ export function matchBlocks(words, nBlocks, rowsPerBlock, o, rng) {
   let short = false;
   for (let b = 0; b < nBlocks && !short; b++) {
     const inBlock = new Set();
+    const blockWords = [];          // слова блока: словоформы одного слова в одном стимуле не допускаются
     const rows = [];
     for (let r = 0; r < rowsPerBlock; r++) {
       const avail = Object.fromEntries(cats.map((c) => [c, shuffled[c].filter((w) =>
-        !inBlock.has(w.id) && (o.allowRepeats || usage.get(w.id) === 0))]));
+        !inBlock.has(w.id) && (o.allowRepeats || usage.get(w.id) === 0) && !hasRelative(w.word, blockWords))]));
       if (cats.some((c) => !avail[c].length)) { short = true; break; }
       let pick;
       if (cats.length === 1) {
@@ -174,23 +179,30 @@ export function matchBlocks(words, nBlocks, rowsPerBlock, o, rng) {
         for (const a of avail[anchorCat]) {
           const cand = { [anchorCat]: a };
           let total = 5 * usage.get(a.id);
+          let ok = true;
           for (const c of cats) {
             if (c === anchorCat) continue;
             let bw = null; let bc = Infinity;
-            for (const w of avail[c]) { const k = cost(a, w) + 5 * usage.get(w.id); if (k < bc) { bc = k; bw = w; } }
+            for (const w of avail[c]) {
+              if (Object.values(cand).some((x) => sameLexeme(x.word, w.word))) continue;
+              const k = cost(a, w) + 5 * usage.get(w.id); if (k < bc) { bc = k; bw = w; }
+            }
+            if (!bw) { ok = false; break; }
             cand[c] = bw; total += bc;
           }
+          if (!ok) continue;
           if (!best || total < best.total) best = { total, cand };
         }
+        if (!best) { short = true; break; }
         pick = best.cand;
       }
-      for (const w of Object.values(pick)) { inBlock.add(w.id); usage.set(w.id, usage.get(w.id) + 1); }
+      for (const w of Object.values(pick)) { inBlock.add(w.id); blockWords.push(w); usage.set(w.id, usage.get(w.id) + 1); }
       rows.push(pick);
     }
     if (rows.length === rowsPerBlock) blocks.push(rows);
   }
   if (blocks.length < nBlocks) {
-    warnings.push(`Слов не хватает: нужно блоков по ${rowsPerBlock} слов${rowsPerBlock === 1 ? 'у' : ''} в категории — ${nBlocks}, подобрано ${blocks.length}. ` +
+    warnings.push(`Слов${fixLen ? ` длиной ${fixLen} букв` : ''} не хватает: нужно блоков по ${rowsPerBlock} слов${rowsPerBlock === 1 ? 'у' : ''} в категории — ${nBlocks}, подобрано ${blocks.length}. ` +
       (o.allowRepeats ? 'В одной из категорий слов меньше, чем нужно для одного стимула.' : 'Слова закончились: разрешите повторы слов, загрузите больше слов или уменьшите число стимулов.'));
   }
   return { blocks, warnings };
@@ -336,8 +348,9 @@ export function buildGrid(rng, opts) {
 export function checkFit(words, optsIn) {
   const { o } = normalizeOptions(optsIn);
   const maxLen = maxWordLength(o);
-  const eligible = words.filter((w) => w.category && w.len >= 2 && w.len <= maxLen);
-  if (!eligible.length) return { ok: false, message: `Нет слов подходящей длины (от 2 до ${maxLen} букв).`, tried: 0 };
+  const fixLen = o.fixedLength > 0 ? o.fixedLength : 0;
+  const eligible = words.filter((w) => w.category && w.len >= 2 && w.len <= maxLen && (!fixLen || w.len === fixLen));
+  if (!eligible.length) return { ok: false, message: fixLen ? `Нет слов длиной ${fixLen} букв, которые помещаются в сетку.` : `Нет слов подходящей длины (от 2 до ${maxLen} букв).`, tried: 0 };
   const plan = planOf(o);
   const k = o.targetsPerStimulus;
   const cats = o.useCategory ? EMOTION_KEYS : ['any'];

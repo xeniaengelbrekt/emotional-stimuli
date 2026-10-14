@@ -14,6 +14,7 @@
    ============================================================ */
 
 import { makeRng } from '../../common/rng.js';
+import { hasRelative } from '../../common/lexeme.js';
 import { EMOTIONS, EMOTION_KEYS } from '../../common/emotions.js';
 import { oneWayAnova, meanOf, sdOf } from '../../core/stats.js';
 
@@ -138,13 +139,20 @@ function generateOnce(allWords, o) {
     w.category === c && !taken.has(w.id) && !reserved.has(w.id) && (o.allowRepeats || usage.get(w.id) === 0));
 
   /** k слов из кандидатов, ближайших к точке ref. */
-  function nearest(cands, ref, k, noise = o.noise) {
+  function nearest(cands, ref, k, noise = o.noise, avoid = []) {
     if (cands.length < k) return null;
-    return cands
+    const sorted = cands
       .map((w) => ({ w, s: d2(vec.get(w.id), ref) + o.repeatPenalty * usage.get(w.id) + noise * rng.next() }))
       .sort((a, b) => a.s - b.s)
-      .slice(0, k)
       .map((x) => x.w);
+    // словоформы одного слова («тактика — тактики») в одном стимуле не допускаются
+    const out = [];
+    for (const w of sorted) {
+      if (out.length === k) break;
+      if (hasRelative(w.word, avoid) || hasRelative(w.word, out)) continue;
+      out.push(w);
+    }
+    return out.length === k ? out : null;
   }
 
   /**
@@ -219,7 +227,7 @@ function generateOnce(allWords, o) {
     const picked = [];
     for (const [c, k] of Object.entries(quota)) {
       if (k <= 0) continue;
-      const got = nearest(pool(c, taken), tv, k);
+      const got = nearest(pool(c, taken), tv, k, o.noise, [t, ...picked]);
       if (!got) return null;
       got.forEach((w) => { taken.add(w.id); picked.push(w); });
     }

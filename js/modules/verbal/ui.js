@@ -81,6 +81,7 @@ function readOptions() {
     matchLength: readChecks('vb-match').includes('len'),
     matchFreq: readChecks('vb-match').includes('freq'),
     matchRating: readChecks('vb-match').includes('rate'),
+    fixedLength: readInt('vb-fixlen', 0, 0, 40),
     perCombo: readInt('vb-per', 1, 1, 50),
     orientations, colors,
     targetsPerStimulus: readInt('vb-k', 4, 1, 40),
@@ -187,7 +188,7 @@ function update() {
   if (!state.words.length) issues.push('Загрузите CSV со словами.');
   const maxLen = maxWordLength(o);
   const pool = o.useCategory ? eligible : state.words;
-  const fit = pool.filter((w) => w.len <= maxLen && w.len >= 2);
+  const fit = pool.filter((w) => w.len <= maxLen && w.len >= 2 && (!o.fixedLength || w.len === o.fixedLength));
   let table = '';
   if (state.words.length && o.orientations.length) {
     const need = o.allowRepeats ? plan.rowsPerSlot : plan.slots * plan.rowsPerSlot;
@@ -196,7 +197,7 @@ function update() {
     }));
     if (rows.some((r) => r.have < r.need)) issues.push(`Слов не хватает для заданного числа стимулов${o.allowRepeats ? '' : ' без повторов'} (см. таблицу «доступно / нужно»); будет собрано максимум возможного. Можно разрешить повторы слов, загрузить больше слов или уменьшить число стимулов.`);
     if (o.useCategory && eligible.length < state.words.length) issues.push(`${state.words.length - eligible.length} слов не получили эмоциональную категорию (равные или близкие оценки) и не используются.`);
-    if (fit.length < pool.length) issues.push(`${pool.length - fit.length} слов не помещаются в сетку ${o.cols}×${o.rows} (длиннее ${maxLen} букв) и не используются.`);
+    if (!o.fixedLength && fit.length < pool.length) issues.push(`${pool.length - fit.length} слов не помещаются в сетку ${o.cols}×${o.rows} (длиннее ${maxLen} букв) и не используются.`);
     const f = checkFit(o.useCategory ? eligible : state.words.map((w) => ({ ...w, category: w.category || 'any' })), raw);
     if (!f.ok) issues.push(f.message);
     table = `<div class="data-table-wrap tool-gap narrow"><table class="data-table feas-table"><thead><tr><th>Доступно / нужно слов</th>${rows.map((r) => `<th>${r.c === 'any' ? 'Все слова' : EMOTION_BY_KEY[r.c].ru}</th>`).join('')}</tr></thead>
@@ -404,7 +405,9 @@ function methodsDoc({ res, stimuli, opts, style, salMode, method, texts, instruc
       ['Слова у внешних границ сетки', opts.allowBorder ? 'допускаются' : 'не допускаются'],
       ['Пересечение слов (общие клетки)', opts.allowOverlap ? 'допускается' : 'не допускается'],
       ['Касание слов (соседние клетки)', opts.allowTouch ? 'допускается' : 'не допускается (между словами не менее одной свободной клетки, в том числе по диагонали)'],
+      ['Длина слов', opts.fixedLength > 0 ? `все слова во всех стимулах — ровно ${opts.fixedLength} букв` : 'не фиксируется; в стимуле слова подбираются близкими по длине'],
       ['Повторы слов в разных стимулах', opts.allowRepeats ? 'допускаются' : 'не допускаются'],
+      ['Словоформы одного слова в одном стимуле', 'не допускаются (слова с общим началом от 4 букв, различающиеся не более чем двумя последними буквами)'],
       ['Уравнивание слов по', [opts.matchLength && 'длине', opts.matchFreq && 'частотности', opts.matchRating && 'оценке по своей шкале'].filter(Boolean).join(', ') || 'не используется'],
       ['Список слов', state.fileName || '—', `использовано слов в наборе: ${new Set(stimuli.flatMap((s) => s.targets.map((w) => w.id))).size}`],
       ['Номер случайного набора', opts.seed],
@@ -499,6 +502,7 @@ export function initVerbal() {
         ${fld.check('vb-repeat', 'Разрешить повторы слов в разных стимулах', false, { hint: 'Выключено (по умолчанию): каждое слово используется один раз за весь набор. Включено: слово может встречаться в разных стимулах, но не дважды в одном.' })}
         ${fld.checks('vb-match', 'Уравнивать слова разных категорий по', [['len', 'длине', true], ['freq', 'частотности', true], ['rate', 'оценке по своей шкале', true]], { wide: true,
           hint: 'Слова подбираются «рядами» — по одному из каждой категории, максимально близких по выбранным признакам. Длина уравнивается строго (одинаковое число букв), если слов достаточно.' })}
+        ${fld.num('vb-fixlen', 'Длина слов во всех стимулах, букв', '', { min: 2, max: 40, placeholder: 'любая', hint: 'Пусто — длина не фиксируется: в стимуле слова разных категорий близки по длине, но между стимулами длина может различаться. Число — все слова во всех стимулах ровно этой длины (например, 6): так условия не различаются по длине слов. Слов нужной длины должно хватать (см. таблицу «доступно / нужно»).' })}
         ${fld.num('vb-seed', 'Номер случайного набора', 1, { hint: 'При том же номере и тех же данных получится тот же набор. Поменяйте номер, чтобы получить другой.' })}
       `)}
       ${sep()}

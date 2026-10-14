@@ -48,4 +48,16 @@ console.log([20, 30, 40].map((n) => JSON.stringify(gridFor(n, 1920, 900))).join(
   const c = {}; [e.target, ...e.distractors].forEach((w) => { c[w.category] = (c[w.category] || 0) + 1; });
   ok(res.built === 24 && Object.values(c).every((v) => v === 10), 'режим all: по 10 слов из 4 категорий ' + JSON.stringify(c));
 }
+{
+  // словоформы одного слова («тактика — тактики») в одном стимуле не допускаются
+  const r = makeRng(9); const ws = []; let n = 0;
+  const L = 'абвгдежзиклмнопрстуф';
+  for (const c of EMOTION_KEYS) for (let i = 0; i < 60; i++) {
+    const stem = Array.from({ length: 6 }, () => L[r.int(L.length)]).join('');
+    for (const end of ['а', 'ы']) ws.push({ id: 'f' + n, word: stem + end, category: c, len: 7, freq: 50, ratings: {}, n: n++ });
+  }
+  const res = generateWordStimuli(ws, { seed: 3, levels: [20] });
+  const clash = res.stimuli.filter((st) => { const all = [st.target, ...st.distractors].map((w) => w.word.slice(0, 6)); return new Set(all).size !== all.length; });
+  ok(res.built > 0 && clash.length === 0, `слова: словоформы не попадают в один стимул (стимулов ${res.built}, с конфликтами ${clash.length})`);
+}
 process.exit(fails ? 1 : 0);
