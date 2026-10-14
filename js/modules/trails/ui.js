@@ -250,8 +250,8 @@ async function generate() {
         const text = (texts[keyOf(sp.direction, sp.distractor)] ?? '').replaceAll('{n}', sp.n);
         pngs.push({ path: file, draw: (c, s = 1) => drawInstructionText(c, { width: style.width, height: style.height, background: style.background, color: style.color, fontFamily: style.fontFamily, text, scale: s }) });
       }
-      pngs.push({ path: 'rating_scale.png', desc: 'Экран самооценки: цифры 1–5, по которым участник щёлкает мышью (области — в rating_scale_aoi.csv)', draw: (c, s = 1) => { drawRatingScale(c, style, texts.rating, s); } });
     }
+    pngs.push({ path: 'rating_scale.png', desc: 'Экран самооценки: цифры 1–5, по которым участник щёлкает мышью (области — в rating_scale_aoi.csv)', draw: (c, s = 1) => { drawRatingScale(c, style, texts.rating, s); } });
     const ratingBoxes = drawRatingScale(document.createElement('canvas'), style, texts.rating, 0.05);
     const ratingRows = ratingBoxes.map((b) => ({ screen: 'rating_scale.png', value: b.value, x: b.x, y: b.y, w: b.w, h: b.h }));
     mountResults($('#tr-results'), {
@@ -262,7 +262,7 @@ async function generate() {
       manifests: [
         { file: 'stimuli.csv', rows, desc: 'По строке на стимул: расположение, направление, расстояния, дистракторы и их положение, размер шрифта, расстояние между строками, средняя яркость' },
         { file: 'stimuli_aoi.csv', rows: aoi, desc: 'Области интереса всех элементов стимула (числа и дистракторы) в пикселях стимула' },
-        ...(editor.enabled() ? [{ file: 'rating_scale_aoi.csv', rows: ratingRows, desc: 'Области цифр 1–5 на экране самооценки (rating_scale.png)' }] : []),
+        { file: 'rating_scale_aoi.csv', rows: ratingRows, desc: 'Области цифр 1–5 на экране самооценки (rating_scale.png)' },
       ],
       methods: () => methodsDoc({ stimuli, style, seed, texts, instructionOn: editor.enabled(), global: readGlobal() }),
       readmeIntro: 'Стимулы «Траектории»: числа в несколько строк; участник прослеживает их взглядом, затем оценивает себя щелчком мыши по цифре 1–5 и нажимает ПРОБЕЛ.',
@@ -400,7 +400,7 @@ function methodsDoc({ stimuli, style, seed, texts, instructionOn, global }) {
       blocks.push(P(`//${DIRECTIONS[d].ru}; ${DISTRACTOR_KINDS[kind].ru.toLowerCase()}.// ${String(v).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
     }
     blocks.push(P(`//Экран оценки.// ${String(texts.rating).replace(/\*\*/g, '').replace(/\n+/g, ' ')}`));
-  } else blocks.push(P('Инструкции в архив не включены.'));
+  } else blocks.push(P('Инструкции в архив не включены. Экран самооценки (rating_scale.png, шкала 1–5) включён в архив всегда.'));
   blocks.push(H2('6. Ответы и области интереса'),
     P('Объективного правильного ответа в задании нет: по стимулу регистрируются движения глаз. Файл stimuli_aoi.csv содержит области интереса каждого числа и дистрактора (в пикселях стимула), файл answer_key.csv — положение дистракторов (на них смотреть нельзя) и описание ответа самооценки; области цифр 1–5 — в rating_scale_aoi.csv.'),
     M.reproducibilityParagraph(seed));
