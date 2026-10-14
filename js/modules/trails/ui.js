@@ -77,6 +77,7 @@ function readGlobal() {
     letters: [...new Set(readStr('tr-letters').split(/[\s,;]+/).map((x) => x.trim().slice(0, 1).toLocaleUpperCase('ru')).filter(Boolean))],
     dCount: readInt('tr-dcount', 1, 1, 10),
     rowStep: readInt('tr-rowstep', 0, 0, 1000),
+    fontSize: readInt('tr-fontsize', 0, 0, 400),
     spacings: Object.keys(SPACINGS).filter((k) => readChecks('tr-spacing').includes(k)),
     perVariant: readInt('tr-per', 1, 1, 20),
     seed: readInt('tr-seed', 1),
@@ -185,6 +186,7 @@ function updatePlan() {
   $('#tr-feas').innerHTML = issues.length ? alertBox('warn', `<ul>${issues.slice(0, 12).map((x) => `<li>${esc(x)}</li>`).join('')}${issues.length > 12 ? `<li>…и ещё ${issues.length - 12}</li>` : ''}</ul>`) : '';
   $('#tr-generate').disabled = !state.rows.length;
   const rec = recommendedFont(style.width, style.height, readInt('tr-n', 15, 3, 120), readInt('tr-rows', 3, 1, 12));
+  const fsInput = $('#tr-fontsize'); if (fsInput) fsInput.placeholder = `авто: ${rec}`;
   $('#tr-font-hint').textContent = `Для ${readInt('tr-n', 15)} чисел в ${readInt('tr-rows', 3)} строки рекомендуется около ${rec} пикс.; в таблице у стимула размер можно задать отдельно (0 — подобрать автоматически).`;
   editor?.preview();
 }
@@ -294,6 +296,7 @@ export function initTrails() {
       ${grid(`
         ${fld.num('tr-n', 'Сколько всего чисел', 15, { min: 3, max: 120 })}
         ${fld.num('tr-rows', 'В скольких строках', 3, { min: 1, max: 12 })}
+        ${fld.num('tr-fontsize', 'Размер шрифта чисел, пикс.', '', { min: 0, max: 400, placeholder: 'авто', hint: 'Пусто или 0 — размер подбирается автоматически по числу строк и столбцов (см. рекомендацию в блоке «Внешний вид»). Для отдельного стимула размер можно изменить в таблице ниже.' })}
         ${fld.num('tr-rowstep', 'Расстояние между строками (линиями), пикс.', '', { min: 0, max: 1000, placeholder: 'авто', hint: 'Расстояние между центрами соседних строк. Пусто или 0 — подбирается автоматически по высоте экрана. У каждого стимула в таблице ниже его можно задать отдельно.' })}
         ${fld.checks('tr-dirs', 'Что должен прослеживать участник (по инструкции)', Object.entries(DIRECTIONS).map(([k, v]) => [k, v.ru, true]), { wide: true,
           hint: 'Направление влияет только на инструкцию, расположение чисел на экране остаётся прежним. Для каждого отмеченного варианта создаются свои стимулы.' })}

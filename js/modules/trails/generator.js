@@ -71,7 +71,7 @@ export function buildRows(o = {}) {
         for (let k = 0; k < c.perVariant; k++) {
           rows.push(blankRow({
             n: c.n, rows: c.rows, arrangement, direction, spacing, distractor: kind,
-            letter: letter || 'А', dCount: kind === 'none' ? 0 : c.dCount, rowStep: c.rowStep || 0,
+            letter: letter || 'А', dCount: kind === 'none' ? 0 : c.dCount, rowStep: c.rowStep || 0, fontSize: c.fontSize || 0,
           }));
         }
       }
