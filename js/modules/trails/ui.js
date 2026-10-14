@@ -343,6 +343,12 @@ export function initTrails() {
   $('#tr-rebuild').addEventListener('click', () => rebuildRows(true));
   onAnyChange($('#mode-trails'), (el) => {
     if (el.id.startsWith('tr-ins') || el.closest('#tr-table')) return;
+    // размер шрифта и расстояние между строками из общих настроек сразу применяются ко всем стимулам таблицы
+    if (el.id === 'tr-fontsize' || el.id === 'tr-rowstep') {
+      const g = readGlobal();
+      state.rows.forEach((r) => { if (el.id === 'tr-fontsize') r.fontSize = g.fontSize || 0; else r.rowStep = g.rowStep || 0; });
+      renderTable();
+    }
     if (el.id.startsWith('tr-') && !['tr-n', 'tr-rows'].includes(el.id)) invalidate();
     updatePlan();
   });
