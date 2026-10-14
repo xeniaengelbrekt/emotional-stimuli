@@ -1,4 +1,4 @@
-import { generateRotation, patternKey, applyOp, OPTION_SETS, TRANSFORM_KEYS } from '../js/modules/rotation/generator.js';
+import { generateRotation, describeOptions, summarizeOptions, OPTION_LOGIC, patternKey, applyOp, OPTION_SETS, TRANSFORM_KEYS } from '../js/modules/rotation/generator.js';
 import { generateVerbal, findOccurrences, cleanWord } from '../js/modules/verbal/generator.js';
 import { generateDiff } from '../js/modules/diff/generator.js';
 import { buildRows, generateTrails, layoutTrail } from '../js/modules/trails/generator.js';
@@ -226,6 +226,15 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
 {
   const r = generateRotation({ seed: 1, perCombo: 1 });
   ok(new Set(r.stimuli.map((x) => patternKey(x.figure.cells))).size === r.stimuli.length, 'вращение: у ч/б и цветных вариантов (и всех заданий) разные фигуры');
+}
+
+{
+  const r = generateRotation({ seed: 2, perCombo: 2 });
+  const rowsAll = r.stimuli.flatMap(describeOptions);
+  ok(rowsAll.length === r.stimuli.length * 4 && r.stimuli.every((st) => describeOptions(st).filter((x) => x.is_correct === 1).length === 1), 'вращение: для каждого стимула описано 4 варианта, верный один');
+  ok(rowsAll.every((x) => x.error_logic && x.cells_shared_with_correct >= 0) && rowsAll.filter((x) => x.is_correct).every((x) => x.cells_shared_with_correct === x.n_cells), 'вращение: у каждого варианта есть описание логики; верный совпадает с собой');
+  const sm = summarizeOptions(r.stimuli);
+  ok(sm.length === 16 && sm.every((x) => OPTION_LOGIC[`${x.task}:${x.operation}`]), 'вращение: сводка — 4 задания × 4 типа вариантов');
 }
 
 process.exit(fails ? 1 : 0);

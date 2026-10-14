@@ -188,3 +188,63 @@ export function generateRotation(opts = {}) {
   }
   return { stimuli, requested: total, options: o };
 }
+
+
+/* ---------------- логика вариантов ответа ---------------- */
+
+/** Класс преобразования: вращение сохраняет «ориентацию» фигуры, отражение — меняет. */
+export const OP_KIND = { cw90: 'поворот', ccw90: 'поворот', r180: 'поворот', mirror: 'отражение', flipV: 'отражение' };
+
+/**
+ * Какая ошибка стоит за неверным вариантом (что сделал бы участник, выбрав его) — для каждого задания.
+ * Ключ: `${задание}:${операция}`; операция, совпадающая с заданием, — верный ответ.
+ */
+export const OPTION_LOGIC = {
+  'cw90:cw90':     'Верный ответ: поворот на 90° по часовой стрелке.',
+  'cw90:ccw90':    'Ошибка направления: фигура повёрнута на 90°, но против часовой стрелки (перепутано направление поворота).',
+  'cw90:mirror':   'Отражение вместо поворота: фигура отражена слева направо (смена типа преобразования).',
+  'cw90:flipV':    'Отражение вместо поворота: фигура отражена сверху вниз (смена типа преобразования).',
+  'ccw90:ccw90':   'Верный ответ: поворот на 90° против часовой стрелки.',
+  'ccw90:cw90':    'Ошибка направления: фигура повёрнута на 90°, но по часовой стрелке (перепутано направление поворота).',
+  'ccw90:mirror':  'Отражение вместо поворота: фигура отражена слева направо (смена типа преобразования).',
+  'ccw90:flipV':   'Отражение вместо поворота: фигура отражена сверху вниз (смена типа преобразования).',
+  'mirror:mirror': 'Верный ответ: зеркальное отражение относительно вертикальной оси (лево↔право).',
+  'mirror:flipV':  'Ошибка оси: фигура отражена относительно горизонтальной оси (сверху вниз) вместо вертикальной.',
+  'mirror:cw90':   'Поворот вместо отражения: фигура повёрнута на 90° по часовой стрелке (смена типа преобразования).',
+  'mirror:ccw90':  'Поворот вместо отражения: фигура повёрнута на 90° против часовой стрелки (смена типа преобразования).',
+  'r180:r180':     'Верный ответ: поворот на 180°.',
+  'r180:cw90':     'Неполный поворот: фигура повёрнута только на 90° по часовой стрелке (половина требуемого угла).',
+  'r180:ccw90':    'Неполный поворот: фигура повёрнута только на 90° против часовой стрелки (половина требуемого угла, обратное направление).',
+  'r180:mirror':   'Отражение вместо поворота: фигура отражена слева направо (смена типа преобразования).',
+};
+
+const cellKeySet = (cells) => new Set(cells.map((c) => `${c.r},${c.c}`));
+const overlapCount = (a, b) => { const sb = cellKeySet(b); return cellKeySet(a).size === 0 ? 0 : [...cellKeySet(a)].filter((k) => sb.has(k)).length; };
+
+/** Строки «вариант ответа × логика» для одного стимула. */
+export function describeOptions(st) {
+  const correct = st.options.find((o) => o.correct);
+  return st.options.map((o) => ({
+    stimulus: st.name, task: st.transform, option: o.pos, is_correct: o.correct ? 1 : 0,
+    operation: o.op, operation_kind: OP_KIND[o.op], operation_ru: OP_RU[o.op],
+    error_logic: OPTION_LOGIC[`${st.transform}:${o.op}`] || '',
+    cells_shared_with_correct: overlapCount(o.cells, correct.cells),
+    cells_shared_with_task: overlapCount(o.cells, st.figure.cells),
+    n_cells: o.cells.length,
+  }));
+}
+
+/** Сводка «задание × операция»: сколько раз встречался вариант и насколько он похож на верный ответ. */
+export function summarizeOptions(stimuli) {
+  const map = new Map();
+  for (const st of stimuli) for (const r of describeOptions(st)) {
+    const key = `${r.task}:${r.operation}`;
+    const m = map.get(key) || { task: r.task, operation: r.operation, operation_kind: r.operation_kind, operation_ru: r.operation_ru, role: r.is_correct ? 'верный' : 'неверный', error_logic: r.error_logic, n: 0, sumCorrect: 0, sumTask: 0 };
+    m.n++; m.sumCorrect += r.cells_shared_with_correct; m.sumTask += r.cells_shared_with_task;
+    map.set(key, m);
+  }
+  return [...map.values()].map((m) => ({
+    task: m.task, operation: m.operation, operation_kind: m.operation_kind, operation_ru: m.operation_ru, role: m.role, error_logic: m.error_logic,
+    times_shown: m.n, mean_cells_shared_with_correct: Number((m.sumCorrect / m.n).toFixed(2)), mean_cells_shared_with_task: Number((m.sumTask / m.n).toFixed(2)),
+  }));
+}

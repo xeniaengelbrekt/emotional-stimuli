@@ -11,7 +11,7 @@ import { mountResults, metricTable } from '../../kit/results.js';
 import { evaluateSalience, relativeAoiSalience, salienceBalance, METHOD_LABELS, SAL_KEYS } from '../../kit/salience.js';
 import { ensureFont } from '../../kit/text.js';
 import { meanLuminance } from '../../kit/luminance.js';
-import { TRANSFORMS, TRANSFORM_KEYS, COLOR_MODES, COLOR_KEYS, OP_RU, OPTION_SETS, generateRotation, feasiblePresets, presetLabel, figureFeasibility } from './generator.js';
+import { TRANSFORMS, TRANSFORM_KEYS, COLOR_MODES, COLOR_KEYS, OP_RU, OPTION_SETS, OPTION_LOGIC, describeOptions, summarizeOptions, generateRotation, feasiblePresets, presetLabel, figureFeasibility } from './generator.js';
 import { DEFAULT_STYLE, autoCell, checkLayout, drawRotationStimulus } from './render.js';
 import { BG, FG, NEXT_LINE, START_LINE } from '../../kit/defaults.js';
 import * as M from '../../kit/methods.js';
@@ -315,6 +315,8 @@ function showResults(res, stimuli, opts, style, salOn, method) {
     answerKey: keyRows,
     manifests: [
       { file: 'stimuli.csv', rows, desc: 'По строке на стимул: задание, цветность, номер верного ответа, операции вариантов, число клеток и фигурок, средняя яркость, салиентность (если оценивалась)' },
+      { file: 'options_logic.csv', rows: stimuli.flatMap(describeOptions), desc: 'Логика каждого варианта ответа: какое преобразование он представляет, какая ошибка за ним стоит, сколько клеток (из 10) он делит с верным вариантом и с фигурой-заданием. Чем больше общих клеток с верным ответом, тем труднее вариант отбросить' },
+      { file: 'options_logic_summary.csv', rows: summarizeOptions(stimuli), desc: 'Сводка по заданию и типу варианта: сколько раз он предъявлялся и среднее число клеток, общих с верным ответом и с заданием (для сравнения «лёгкости отбрасывания» типов неверных вариантов)' },
       { file: 'stimuli_aoi.csv', rows: aoiRows, desc: 'Области интереса в пикселях стимула: фигура-задание и четыре варианта (с признаком верного и относительной салиентностью)' },
     ],
     methods: () => methodsDoc({ res, stimuli, opts, style, salOn, method, items: editor.texts(), instructionOn: editor.enabled(), pos }),
@@ -368,6 +370,8 @@ function methodsDoc({ res, stimuli, opts, style, salOn, method, items, instructi
       `${opts.colors.includes('figure') ? `«${COLOR_MODES.figure.ru}»: клетки одной линии одного цвета, у разных линий разные цвета. ` : ''}` +
       'Цвета выбраны одинаковой воспринимаемой светлоты (цветовое пространство OKLCH, светлота 0,62, насыщенность 0,14, тона равномерно по кругу), чтобы различия между цветами не создавали различий в заметности. ' +
       'Цвет клетки сохраняется при любом преобразовании: клетка с одним и тем же цветом присутствует во всех вариантах.'),
+    P('Логика неверных вариантов. Каждый неверный вариант — та же фигура после другого преобразования, за которым стоит определённая ошибка участника (перепутано направление поворота, выбрано отражение вместо поворота, перепутана ось отражения, выполнен неполный поворот). Для оценки «лёгкости отбрасывания» вариантов для каждого предъявленного варианта подсчитано число клеток (из 10), совпадающих с клетками верного ответа и с фигурой-заданием; чем оно больше, тем сильнее вариант визуально похож на верный и тем труднее его отбросить. Подробности по каждому стимулу — в таблице options_logic.csv архива.'),
+    TABLE(['Задание', 'Вариант', 'Роль', 'Логика', 'Показано', 'Общих клеток с верным (в среднем)'], summarizeOptions(stimuli).map((r) => [TRANSFORMS[r.task].short, r.operation_ru, r.role, r.error_logic, String(r.times_shown), String(r.mean_cells_shared_with_correct).replace('.', ',')]), [1.6, 2.2, 1.1, 5, 1.1, 1.6]),
     H2('3. Состав набора'),
     TABLE(['Задание', ...opts.colors.map((k) => COLOR_MODES[k].ru), 'Всего'],
       opts.transforms.map((t) => [TRANSFORMS[t].ru, ...opts.colors.map((c) => stimuli.filter((s) => s.transform === t && s.color === c).length), stimuli.filter((s) => s.transform === t).length])),
