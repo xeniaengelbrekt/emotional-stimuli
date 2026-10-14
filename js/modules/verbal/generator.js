@@ -20,8 +20,8 @@
      ставится в наименее занятую из зон, куда оно помещается).
    • В сетке нет «лишних» вхождений целевых слов (в том числе задом
      наперёд и в другом направлении).
-   • Цветность — лишь заливка клеток: слова и буквы у ч/б и цветного
-     варианта одного стимула одинаковы.
+   • Чёрно-белый и цветной варианты — разные стимулы: у каждого свои
+     целевые слова и свои буквы (слова между ними не повторяются).
 
    Модуль чистый (без DOM) — проверяется в Node.
    ============================================================ */
@@ -104,10 +104,11 @@ export function normalizeOptions(opts = {}) {
 /** Сколько «рядов» (по слову на категорию) нужно на один стимул и сколько стимулов-блоков. */
 export function planOf(o) {
   const O = o.orientations.length;
+  const C = Math.max(1, (o.colors || []).length);   // цветная и ч/б сетки — разные стимулы: у каждой свои слова и буквы
   const k = o.targetsPerStimulus;
-  if (o.useCategory && o.composition === 'four') return { slots: O * o.perCombo, rowsPerSlot: k / 4, perCat: 1, mode: 'four' };
-  if (o.useCategory) return { slots: O * o.perCombo, rowsPerSlot: k, perCat: 4, mode: 'one' };
-  return { slots: O * o.perCombo, rowsPerSlot: k, perCat: 1, mode: 'any' };
+  if (o.useCategory && o.composition === 'four') return { slots: O * C * o.perCombo, rowsPerSlot: k / 4, perCat: 1, mode: 'four' };
+  if (o.useCategory) return { slots: O * C * o.perCombo, rowsPerSlot: k, perCat: 4, mode: 'one' };
+  return { slots: O * C * o.perCombo, rowsPerSlot: k, perCat: 1, mode: 'any' };
 }
 
 /* ---------------- подбор целевых слов ---------------- */
@@ -395,9 +396,10 @@ export function generateVerbal(wordsIn, opts = {}) {
   const stimCats = plan.mode === 'one' ? cats : [plan.mode === 'four' ? 'mixed4' : 'any'];
   const bases = [];
   const failed = [];
-  o.orientations.forEach((orientation, oi) => {
+  const colorList = o.colors.length ? o.colors : ['bw'];
+  o.orientations.forEach((orientation, oi) => colorList.forEach((color, ci) => {
     for (let s = 0; s < o.perCombo; s++) {
-      const block = m.blocks[oi * o.perCombo + s];
+      const block = m.blocks[(oi * colorList.length + ci) * o.perCombo + s];
       if (!block) continue;
       for (const cat of stimCats) {
         let picked;
@@ -411,31 +413,29 @@ export function generateVerbal(wordsIn, opts = {}) {
             allowOverlap: o.allowOverlap, allowTouch: o.allowTouch, alphabet, distractors: o.distractors, zoneUse,
           });
           // порядок целевых слов в stimuli.targets = порядок размещения (как в texts)
-          bases.push({ category: cat, orientation, slot: s + 1, targets: picked, ...grid, fillSeed: rng.int(1e9) });
+          bases.push({ category: cat, orientation, color, slot: s + 1, targets: picked, ...grid, fillSeed: rng.int(1e9) });
         } catch (e) {
           if (!(e instanceof PlacementError)) throw e;
           failed.push(`${ORIENTATIONS[orientation].short} №${s + 1}${cat === 'any' || cat === 'mixed4' ? '' : ` (${cat})`}: ${e.message}`);
         }
       }
     }
-  });
+  }));
   if (failed.length) {
     warnings.push(`Не удалось расставить слова в ${failed.length} стимулах — слова не помещаются в сетку ${o.cols}×${o.rows}` +
       `${o.allowTouch ? '' : ' без касаний'}${o.allowOverlap ? '' : ' и без пересечений'}. ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '…' : ''}`);
   }
 
-  const requested = plan.slots * stimCats.length * o.colors.length;
+  const requested = plan.slots * stimCats.length;
   const stimuli = [];
   for (const b of bases) {
-    for (const color of o.colors) {
-      const lens = b.targets.map((w) => w.len);
-      const lenTxt = Math.min(...lens) === Math.max(...lens) ? `len${lens[0]}` : `len${Math.min(...lens)}-${Math.max(...lens)}`;
-      const catTxt = b.category === 'any' ? 'mixed' : b.category === 'mixed4' ? 'mix4' : b.category;
-      stimuli.push({
-        ...b, color,
-        name: `filword_${catTxt}_${ORIENTATIONS[b.orientation].short}_${COLOR_MODES[color].short}_${o.cols}x${o.rows}_${DISTRACTORS[o.distractors].short}_w${k}_${lenTxt}_${String(b.slot).padStart(2, '0')}`,
-      });
-    }
+    const lens = b.targets.map((w) => w.len);
+    const lenTxt = Math.min(...lens) === Math.max(...lens) ? `len${lens[0]}` : `len${Math.min(...lens)}-${Math.max(...lens)}`;
+    const catTxt = b.category === 'any' ? 'mixed' : b.category === 'mixed4' ? 'mix4' : b.category;
+    stimuli.push({
+      ...b,
+      name: `filword_${catTxt}_${ORIENTATIONS[b.orientation].short}_${COLOR_MODES[b.color].short}_${o.cols}x${o.rows}_${DISTRACTORS[o.distractors].short}_w${k}_${lenTxt}_${String(b.slot).padStart(2, '0')}`,
+    });
   }
   return { stimuli, requested, warnings, options: o, alphabet, plan };
 }

@@ -167,7 +167,7 @@ function update() {
   const style = readStyle();
   const plan = planOf(o);
   const stimCats = plan.mode === 'one' ? 4 : 1;
-  const total = plan.slots * stimCats * o.colors.length;
+  const total = plan.slots * stimCats;
   // подписи полей зависят от состава
   const lbl = $('label[for="vb-per"]');
   if (lbl) lbl.textContent = `Стимулов на каждое сочетание «${comboText(o)}»`;
@@ -177,7 +177,7 @@ function update() {
     : 'Любое число слов. При составе «из одной категории» все слова стимула — одной эмоциональной категории.';
   const compSel = $('#vb-comp');
   if (compSel) compSel.disabled = !o.useCategory;
-  $('#vb-plan').innerHTML = `План: <strong class="hl">${plan.slots * stimCats}</strong> разных сеток × <strong class="hl">${o.colors.length}</strong> цветн. = <strong class="hl">${total}</strong> стимулов; слов в стимуле: <strong class="hl">${o.targetsPerStimulus}</strong>`;
+  $('#vb-plan').innerHTML = `План: <strong class="hl">${total}</strong> разных стимулов (ч/б и цветные — отдельные, с разными словами); слов в стимуле: <strong class="hl">${o.targetsPerStimulus}</strong>`;
   const rec = recommendedFont(style, o.rows, o.cols);
   $('#vb-size').placeholder = `авто: ${rec}`;
   const eligible = state.words.filter((w) => w.category);
@@ -323,7 +323,7 @@ function showResults(res, stimuli, opts, style, salMode, method) {
   });
 
   const zones = Array(9).fill(0);
-  for (const st of stimuli.filter((s) => s.color === opts.colors[0])) {
+  for (const st of stimuli) {
     const p = st.placements[0]; const mid = p.cells[Math.floor(p.cells.length / 2)];
     zones[Math.min(2, Math.floor((mid[0] / opts.rows) * 3)) * 3 + Math.min(2, Math.floor((mid[1] / opts.cols) * 3))]++;
   }
@@ -332,7 +332,7 @@ function showResults(res, stimuli, opts, style, salMode, method) {
     <p class="muted-p">Среднее ± SD по уникальным словам и однофакторный ANOVA: p &gt; .05 — категории не различаются. Слова подбирались «рядами», поэтому наблюдения не полностью независимы — таблица ориентировочная.</p>
     ${metricTable(catList.map((c) => (c === 'any' ? 'Все слова' : EMOTION_BY_KEY[c].ru)), rowsBal)}
     <h4 class="sub-heading">Где стоят целевые слова</h4>
-    <p class="muted-p">Число стимулов, где первое целевое слово оказалось в каждой из 9 зон сетки (без учёта цветности).</p>
+    <p class="muted-p">Число стимулов, где первое целевое слово оказалось в каждой из 9 зон сетки.</p>
     <div class="data-table-wrap narrow zone-table"><table class="data-table"><tbody>${[0, 1, 2].map((r) => `<tr>${[0, 1, 2].map((c) => `<td class="num">${zones[r * 3 + c]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 
   if (salMode !== 'off') {
@@ -489,7 +489,7 @@ export function initVerbal() {
       ${grid(`
         ${fld.checks('vb-orient', 'Направление слова (для каждого отмеченного создаются свои стимулы)', Object.entries(ORIENTATIONS).map(([k, v]) => [k, v.ru, true]), { wide: true })}
         ${fld.checks('vb-colors', 'Цветность сетки (можно выбрать несколько)', [['bw', COLOR_MODES.bw.ru, true], ['color', COLOR_MODES.color.ru, false]], { wide: true,
-          hint: 'Чёрно-белая: все клетки белые. Цветная: у каждой клетки свой цвет (светлые тона одинаковой светлоты, соседние клетки не совпадают). Слова и буквы в чёрно-белом и цветном варианте одного стимула одинаковы.' })}
+          hint: 'Чёрно-белая: все клетки белые. Цветная: у каждой клетки свой цвет (светлые тона одинаковой светлоты, соседние клетки не совпадают). Чёрно-белый и цветной варианты — разные стимулы: у каждого свои слова и свои буквы.' })}
         ${fld.check('vb-cat', 'Учитывать эмоциональную категорию слов', true, { hint: 'Включено: слова подбираются по четырём эмоциональным категориям. Выключено: слова берутся из всего списка без разделения на категории.' })}
         ${fld.select('vb-comp', 'Состав слов в одном стимуле', Object.entries(COMPOSITIONS).map(([k, v]) => [k, v.ru]), 'four', { hint: 'Доступно при учёте категорий. «Из четырёх категорий» — поровну из каждой (по умолчанию). «Из одной категории» — для каждой категории свои стимулы.' })}
         <div class="field"><label for="vb-k">Количество слов в одном стимуле</label>

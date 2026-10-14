@@ -86,8 +86,12 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   const r = generateVerbal(words, { seed: 3, colors: ['bw', 'color'], perCombo: 2 });
   ok(r.stimuli.length === 2 * 2 * 2, `филворд: направл. × цветн. × 2 = ${r.stimuli.length}`);
   ok(new Set(r.stimuli.map((s) => s.name)).size === r.stimuli.length, 'филворд: имена уникальны');
-  const bw = r.stimuli.find((s) => s.color === 'bw'); const col = r.stimuli.find((s) => s.color === 'color' && s.slot === bw.slot && s.orientation === bw.orientation);
-  ok(JSON.stringify(bw.letters) === JSON.stringify(col.letters), 'филворд: буквы ч/б и цветного варианта одинаковы');
+  const bwS = r.stimuli.filter((x) => x.color === 'bw'); const colS = r.stimuli.filter((x) => x.color === 'color');
+  ok(bwS.length === 4 && colS.length === 4, 'филворд: ч/б и цветных стимулов поровну');
+  const wordsOf = (arr) => arr.flatMap((x) => x.targets.map((w) => w.id));
+  const bwW = wordsOf(bwS); const colW = wordsOf(colS);
+  ok(new Set([...bwW, ...colW]).size === bwW.length + colW.length, 'филворд: слова ч/б и цветных стимулов не повторяются (разные стимулы)');
+  ok(new Set(r.stimuli.map((x) => JSON.stringify(x.letters))).size === r.stimuli.length, 'филворд: все сетки (ч/б и цветные) разные');
   // 8 слов: по 2 из каждой категории; число не кратное 4 округляется вверх с предупреждением
   const e8 = generateVerbal(words, { seed: 2, targetsPerStimulus: 8, orientations: ['horizontal'], allowTouch: true });
   ok(e8.stimuli[0].targets.length === 8 && [...new Set(e8.stimuli[0].targets.map((w) => w.category))].every((c) => e8.stimuli[0].targets.filter((w) => w.category === c).length === 2), 'филворд: 8 слов — по 2 из каждой категории');
@@ -217,6 +221,11 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console
   ok(Math.abs((ym[1] - ym[0]) - 150) < 1e-6 && Math.abs((ym[2] - ym[1]) - 150) < 1e-6, 'траектории: расстояние между строками задаётся в пикселях');
   ok(Math.abs((ym[0] + ym[2]) / 2 - 1080 * 0.5) < 1e-6, 'траектории: блок строк центрируется по экрану');
   ok(manual.rowStep === 150 && buildRows({ rowStep: 120 }).every((r) => r.rowStep === 120), 'траектории: rowStep передаётся из общих настроек');
+}
+
+{
+  const r = generateRotation({ seed: 1, perCombo: 1 });
+  ok(new Set(r.stimuli.map((x) => patternKey(x.figure.cells))).size === r.stimuli.length, 'вращение: у ч/б и цветных вариантов (и всех заданий) разные фигуры');
 }
 
 process.exit(fails ? 1 : 0);
